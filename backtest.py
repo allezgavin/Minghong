@@ -77,13 +77,13 @@ def query_SQL_csi300_weight():
     bench_query = "SELECT td, code, weight / 100 AS weight FROM indexweight WHERE indexnum = '000300.SH';"
     return pd.read_sql(bench_query, mydb)
 
-def backtest(portofolio_or_pathfile, overnight = True, annual_interest_rate = 0.0165):
-    if type(portofolio_or_pathfile) == str:
-        port = pd.read_csv(portofolio_or_pathfile)
-    elif type(portofolio_or_pathfile) == pd.DataFrame:
-        port = portofolio_or_pathfile
+def backtest(portfolio_or_pathfile, overnight = True, annual_interest_rate = 0.0165):
+    if type(portfolio_or_pathfile) == str:
+        port = pd.read_csv(portfolio_or_pathfile)
+    elif type(portfolio_or_pathfile) == pd.DataFrame:
+        port = portfolio_or_pathfile
     else:
-        raise Exception('portofolio file type not supported! Please use .csv filepath or pd.DataFrame')
+        raise Exception('portfolio file type not supported! Please use .csv filepath or pd.DataFrame')
     port['td'] = port['td'].astype('str')
     port = port.sort_values('td', ascending = True)
     start_date = list(port['td'])[0]
@@ -214,7 +214,7 @@ def random_stocks(stock_num, start_date, end_date = datetime.date.today().strfti
         stocks_selected.append(stocks['codenum'][stock_ind])
     return stocks_selected
 
-def random_portofolio(start_date, end_date = datetime.date.today().strftime('%Y%m%d'), stock_num = 500):
+def random_portfolio(start_date, end_date = datetime.date.today().strftime('%Y%m%d'), stock_num = 500):
 
     stocks_selected = random_stocks(stock_num, start_date, end_date = end_date)
 
@@ -227,8 +227,8 @@ def random_portofolio(start_date, end_date = datetime.date.today().strftime('%Y%
         for stock in stocks_selected:
             random_port.append({'td': date, 'codenum': stock, 'weight': random.random() / stock_num})
 
-    pd.DataFrame(random_port).to_csv('random_portofolio.csv', index = False)
-    print('Random portofolio generated!')
+    pd.DataFrame(random_port).to_csv('random_portfolio.csv', index = False)
+    print('Random portfolio generated!')
 
 if __name__ == '__main__':
 
@@ -240,5 +240,5 @@ if __name__ == '__main__':
     if start_date < 20020101:
         raise Exception('start_date too early!')
 
-    random_portofolio(start_date, end_date = end_date)
-    backtest('random_portofolio.csv')
+    random_portfolio(start_date, end_date = end_date)
+    backtest('random_portfolio.csv')

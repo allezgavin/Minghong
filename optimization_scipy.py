@@ -124,21 +124,21 @@ def backtest_iteration(td):
     optimal_weight = optimize(backtest = True)
     return optimal_weight
 
-def backtest_portofolio(start_date, end_date = datetime.date.today().strftime('%Y%m%d')):
+def backtest_portfolio(start_date, end_date = datetime.date.today().strftime('%Y%m%d')):
     all_td = pd.read_csv('factors.csv')['td'].unique()
     all_td = [td for td in all_td if td >= start_date and td <= end_date]
-    portofolio = pd.DataFrame(columns = ['td', 'codenum', 'weight'])
-    portofolio.to_csv('backtest_portofolio.csv', index = False)
+    portfolio = pd.DataFrame(columns = ['td', 'codenum', 'weight'])
+    portfolio.to_csv('backtest_portfolio.csv', index = False)
     for td in all_td:
-        print('Calculating portofolio:', td)
+        print('Calculating portfolio:', td)
         optimal_weight = backtest_iteration(td)
         td_port = pd.DataFrame()
         td_port['td'] = [td for i in range(len(optimal_weight))]
         td_port['codenum'] = optimal_weight.index
         td_port['weight'] = optimal_weight.values
-        previous_port = pd.read_csv('backtest_portofolio.csv')
-        pd.concat([previous_port, td_port]).to_csv('backtest_portofolio.csv', index = False)
+        previous_port = pd.read_csv('backtest_portfolio.csv')
+        pd.concat([previous_port, td_port]).to_csv('backtest_portfolio.csv', index = False)
 
 if __name__ == '__main__':
-    #backtest_portofolio(20220101, end_date=20220120)
+    #backtest_portfolio(20220101, end_date=20220120)
     backtest_iteration(20220110)

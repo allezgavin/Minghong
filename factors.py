@@ -19,11 +19,11 @@ def HAlpha60(df):
     alpha_list = []
     for i in range(len(df_short)):
         print(df_short['start_date'])
-        portofolio = pd.DataFrame()
-        portofolio['td'] = pd.date_range(start = df_short['start_date'][i], end = df_short['end_date'][i], freq = 'D').strftime('%Y%m%d')
-        portofolio['codenum'] = df_short['codenum'][i]
-        portofolio['weight'] = 1
-        alpha = backtest(df_short['start_date'][i].strftime(format = '%Y%m%d'), portofolio, end_date = df_short['end_date'][i].strftime(format = '%Y%m%d')).alpha
+        portfolio = pd.DataFrame()
+        portfolio['td'] = pd.date_range(start = df_short['start_date'][i], end = df_short['end_date'][i], freq = 'D').strftime('%Y%m%d')
+        portfolio['codenum'] = df_short['codenum'][i]
+        portfolio['weight'] = 1
+        alpha = backtest(df_short['start_date'][i].strftime(format = '%Y%m%d'), portfolio, end_date = df_short['end_date'][i].strftime(format = '%Y%m%d')).alpha
         alpha_list.append(alpha)
     df_short['alpha'] = alpha_list
     df = pd.merge(df, df_short, how = 'left', on = ['fd', 'codenum'])

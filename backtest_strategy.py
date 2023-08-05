@@ -1,5 +1,5 @@
 from select_factors import update_factor_history, reselect_factors
-from optimization import backtest_portofolio
+from optimization import backtest_portfolio
 from backtest import backtest, csi300_stocks
 from datetime import datetime
 
@@ -20,5 +20,5 @@ if __name__ == '__main__':
 
     #update_factor_history(start_date, stocks = stocks) # Use reselect_factors() instead if new factors are added.
     reselect_factors(start_date)
-    backtest_portofolio(start_date, stocks = stocks)
-    backtest('backtest_portofolio.csv')
+    backtest_portfolio(start_date, stocks = stocks)
+    backtest('backtest_portfolio.csv')
