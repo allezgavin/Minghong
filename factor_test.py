@@ -122,11 +122,19 @@ def calc_factors(start_date, end_date = datetime.date.today().strftime('%Y%m%d')
     finance_merged = pd.merge(finance_merged, company_df, how = 'inner', on = 'codenum')
     #stocks absent in any table are dropped
 
+    # Convert 'td' column to datetime
     dates = pd.to_datetime(market_df['td'], format = '%Y%m%d')
-    last_day_last_quarter = []
-    for i in range(len(dates)):
-        last_day_last_quarter.append(last_day_of_last_quarter(dates[i]).strftime('%Y%m%d'))
+
+    # Calculate the last day of last quarter using the vectorized function
+    last_day_last_quarter = dates.apply(lambda date: last_day_of_last_quarter(date).strftime('%Y%m%d'))
+
+    # Assign the results to the 'fd' column directly
     market_df['fd'] = last_day_last_quarter
+
+    # last_day_last_quarter = []
+    # for i in range(len(dates)):
+    #     last_day_last_quarter.append(last_day_of_last_quarter(dates[i]).strftime('%Y%m%d'))
+    # market_df['fd'] = last_day_last_quarter
 
     merged_df = pd.merge(market_df, finance_merged, how = 'inner', on = ['fd', 'codenum'])
 
@@ -212,26 +220,29 @@ def calc_factors(start_date, end_date = datetime.date.today().strftime('%Y%m%d')
 def t_test(group_merged_df):
     test_df = group_merged_df[['group', 'gain_next']]
     test_df['date'] = pd.to_datetime(group_merged_df['td'], format = '%Y%m%d')
+
+    test_df['year_month'] = test_df['date'].dt.strftime('%Y%m')
+
     divide_groups = test_df['group'].max()
-    all_dates = test_df['date'].unique()
+    all_dates = test_df['year_month'].unique()
     t_list = []
 
     for date in all_dates: #Adjusts stock holdings every day
-        sub_df = test_df.loc[test_df['date'] == date]
+        sub_df = test_df.loc[test_df['year_month'] == date]
         highest_group = sub_df.loc[sub_df['group'] == 1]
         lowest_group = sub_df.loc[sub_df['group'] == divide_groups]
         t_result = ttest_ind(highest_group['gain_next'], lowest_group['gain_next'])
         t_list.append(t_result.statistic)
 
     result = pd.DataFrame()
-    result['date'] = all_dates.astype('str')
+    result['year_month'] = all_dates.astype('str')
     result['t_value'] = t_list
     result['abs>2'] = pd.Series(t_list).abs() > 2
     
     plt.figure(figsize = (10, 5))
-    sns.barplot(x = 'date', y = 't_value', hue = 'abs>2', data = result)
+    sns.barplot(x = 'year_month', y = 't_value', hue = 'abs>2', data = result)
     step = len(result) // 10
-    plt.xticks(range(0, len(result), step), result['date'][::step], rotation=45)
+    plt.xticks(range(0, len(result), step), result['year_month'][::step], rotation=45)
     plt.tight_layout()
     plt.savefig('t_test.png')
     plt.show()
@@ -286,4 +297,5 @@ if __name__ == '__main__':
 
     stocks_tested = random_stocks(500, start_date, end_date)
 
-    test_factor(start_date, end_date, get_codenum_factor(), stocks = stocks_tested)
+    test_factor(start_date, end_date, get_FR_factor(), stocks = stocks_tested)
+    test_factor(start_date, end_date, get_FR_factor(), stocks = csi300_stocks())
