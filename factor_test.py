@@ -157,19 +157,17 @@ def calc_factors(start_date, end_date = datetime.date.today().strftime('%Y%m%d')
             merged_ind_df = pd.concat([merged_ind_df, merged_df['td']], axis = 1)
             merged_ind_df = pd.concat([merged_ind_df, merged_df['codenum']], axis = 1)
 
-        if 'function' in factors[factor]:
-            if 'lag' in factors[factor]:
-                if len(factors[factor]['lag']) != len(ind_cols):
-                    raise Exception('"lag" list length does not match factor list length!')
-                if 'lag_unit' in factors[factor]:
-                    pass
-                else:
-                    for i in range(len(ind_cols)):
-                        #Group by codenum first, then shift
-                        merged_ind_df[ind_cols[i]] = merged_ind_df.groupby('codenum')[ind_cols[i]].shift(factors[factor]['lag'][i])
-                    merged_df[factor] = factors[factor]['function'](merged_ind_df[ind_cols])
+        
+        if 'lag' in factors[factor]:
+            if len(factors[factor]['lag']) != len(ind_cols):
+                raise Exception('"lag" list length does not match factor list length!')
             else:
-                merged_df[factor] = factors[factor]['function'](merged_ind_df[ind_cols])
+                for i in range(len(ind_cols)):
+                    #Group by codenum first, then shift
+                    merged_ind_df[ind_cols[i]] = merged_ind_df.groupby('codenum')[ind_cols[i]].shift(factors[factor]['lag'][i])
+            
+        if 'function' in factors[factor]:
+            merged_df[factor] = factors[factor]['function'](merged_ind_df[ind_cols])
         else:
             if len(ind_cols) == 1:
                 merged_df[factor] = merged_ind_df[ind_cols[0]]
@@ -215,6 +213,8 @@ def calc_factors(start_date, end_date = datetime.date.today().strftime('%Y%m%d')
                 sub_df['group'].iloc[:(divide_groups - i) * group_size] = i + 1
             concat_sub_df = pd.concat([concat_sub_df, sub_df], ignore_index = True)
         grouped_merged_df = merged_df.merge(concat_sub_df.drop(f'factor_{factor}', axis = 1), on = ['td', 'codenum'])
+
+        print(grouped_merged_df)
         return grouped_merged_df
 
 def t_test(group_merged_df):
@@ -297,5 +297,4 @@ if __name__ == '__main__':
 
     stocks_tested = random_stocks(500, start_date, end_date)
 
-    test_factor(start_date, end_date, get_FR_factor(), stocks = stocks_tested)
     test_factor(start_date, end_date, get_FR_factor(), stocks = csi300_stocks())
