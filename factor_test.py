@@ -147,17 +147,16 @@ def calc_factors(start_date, end_date = datetime.date.today().strftime('%Y%m%d')
         print(f'Calculating {factor}...')
         ind_cols = [ind for ind in factors[factor]['indicators']]
         merged_ind_df = merged_df[ind_cols]
-        #Address dulplicates in ind_cols
+        # Address dulplicates in ind_cols
         ind_cols = replace_duplicates_with_suffixes(ind_cols)
         merged_ind_df.columns = ind_cols
-        if 'td' in ind_cols or 'codenum' in ind_cols:
-            if 'lag' in factors[factor]:
-                raise Exception(f'Indicator list containing td or codenum does not support lagging yet!')
-        else:
+
+        # td and codenum must be included for grouping
+        if 'td' not in ind_cols:
             merged_ind_df = pd.concat([merged_ind_df, merged_df['td']], axis = 1)
+        if 'codenum' not in ind_cols:
             merged_ind_df = pd.concat([merged_ind_df, merged_df['codenum']], axis = 1)
 
-        
         if 'lag' in factors[factor]:
             if len(factors[factor]['lag']) != len(ind_cols):
                 raise Exception('"lag" list length does not match factor list length!')
@@ -165,7 +164,25 @@ def calc_factors(start_date, end_date = datetime.date.today().strftime('%Y%m%d')
                 for i in range(len(ind_cols)):
                     #Group by codenum first, then shift
                     merged_ind_df[ind_cols[i]] = merged_ind_df.groupby('codenum')[ind_cols[i]].shift(factors[factor]['lag'][i])
-            
+
+        if 'rank' in factors[factor]:
+            if len(factors[factor]['rank']) != len(ind_cols):
+                raise Exception('"rank" list length does not match factor list length!')
+            else:
+                for i in range(len(ind_cols)):
+                    if factors[factor]['rank'][i] == True:
+                        merged_ind_df[ind_cols[i]] = merged_ind_df.groupby('td')[ind_cols[i]].transform(lambda x: x.rank())
+
+        if 'ts_rank' in factors[factor]:
+            if len(factors[factor]['ts_rank']) != len(ind_cols):
+                raise Exception('"ts_rank" list length does not match factor list length!')
+            else:
+                for i in range(len(ind_cols)):
+                    if factors[factor]['ts_rank'][i] == True:
+                        merged_ind_df[ind_cols[i]] = merged_ind_df.groupby('codenum')[ind_cols[i]].transform(lambda x: x.rank())
+                        max_rank = merged_ind_df.groupby('codenum')[ind_cols[i]].transform('max')
+                        merged_ind_df[ind_cols[i]] = merged_ind_df[ind_cols[i]] / max_rank # Normalization of time series rank
+
         if 'function' in factors[factor]:
             merged_df[factor] = factors[factor]['function'](merged_ind_df[ind_cols])
         else:
@@ -174,7 +191,6 @@ def calc_factors(start_date, end_date = datetime.date.today().strftime('%Y%m%d')
             else:
                 raise Exception(f'indicators {ind_cols} missing a combination function!')
 
-        
         if len(merged_df) < 20:
             raise Exception(f'Backtest time span is too short for factor {factor}!')
 
@@ -214,7 +230,6 @@ def calc_factors(start_date, end_date = datetime.date.today().strftime('%Y%m%d')
             concat_sub_df = pd.concat([concat_sub_df, sub_df], ignore_index = True)
         grouped_merged_df = merged_df.merge(concat_sub_df.drop(f'factor_{factor}', axis = 1), on = ['td', 'codenum'])
 
-        print(grouped_merged_df)
         return grouped_merged_df
 
 def t_test(group_merged_df):
@@ -262,7 +277,6 @@ def grouped_backtest(group_merged_df):
 
         for j in range(1, len(avg_daily_profit)):
             cumulative.append(cumulative[j - 1] * (1 + avg_daily_profit.iloc[j]))
-
         group_result = pd.DataFrame()
         group_result['date'] = pd.to_datetime(avg_daily_profit.index, format = '%Y%m%d')
         group_result['daily_profit'] = list(avg_daily_profit)
@@ -297,4 +311,6 @@ if __name__ == '__main__':
 
     stocks_tested = random_stocks(500, start_date, end_date)
 
-    test_factor(start_date, end_date, get_FR_factor(), stocks = csi300_stocks())
+    test_factor(start_date, end_date, get_volume_price_factors(), stocks = csi300_stocks())
+
+    #test_factor(start_date, end_date, {'relative_strength_1m':get_momentum_factors()['relative_strength_1m']}, stocks = csi300_stocks())

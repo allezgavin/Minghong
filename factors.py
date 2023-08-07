@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from scipy.stats import pearsonr
 from backtest import *
 
 def subtract(df):
@@ -176,6 +177,74 @@ def get_codenum_factor():
     codenum_factor = {}
     codenum_factor['codenum_adjacency'] = {'indicators': ['td', 'codenum', 'gain'], 'function': weighted_gain_codenum}
     return codenum_factor
+
+def corr_dropna(list1,list2):
+    return pd.DataFrame([list(list1),list(list2)]).dropna(axis = 1).T.corr().iloc[0,1]
+
+def delta(df):
+    return pd.DataFrame([df.iloc[:, i + 1] - df.iloc[:, i] for i in range(df.shape[1] - 1)]).T
+
+def chg_div(df):
+    length = df.shape[1] // 2
+    df1 = delta(df.iloc[:, :length])
+    df2 = delta(df.iloc[:, length:])
+    return [corr_dropna(df1.iloc[i, :], df2.iloc[i, :]) for i in range(len(df))]
+
+def ranked_chg_div(df):
+    if 'td' not in df.columns:
+        raise TypeError('"td" should be in the DataFrame!')
+    df_td = df['td']
+    length = (df.shape[1] - 1) // 2
+    # Split into two dataframes for taking the delta
+    df1 = delta(df.drop('td', axis = 1).iloc[:, :length])
+    df2 = delta(df.drop('td', axis = 1).iloc[:, length:])
+    # Concatenate back to a single dataframe
+    df = pd.concat([df1, df2], axis = 1)
+    df['td'] = df_td
+    df = df.groupby('td').transform(lambda x: x.rank()).drop('td', axis = 1)
+    return [corr_dropna(df.iloc[i, :length], df.iloc[i, length:]) for i in range(len(df))]
+    
+def ts_ranked_chg_div(df):
+    df['vol'] = df['vol'] - df['vol'].shift(1)
+    df['close'] = df['close'] - df['close'].shift(1)
+    sub_dfs = []
+    for code, sub_df in df.groupby('codenum'):
+        sub_df.drop('codenum', axis = 1, inplace = True)
+        
+        for i in range(9, len(sub_df)):
+            sub_df.iloc[i, :] = sub_df.iloc[i-9:i+1, :].rank().iloc[9, :]
+
+        for i in range(9):
+            sub_df.iloc[i, :] = np.nan
+
+        sub_df['corr'] = np.nan
+        for i in range(20, len(sub_df)):
+            sub_df['corr'][i] = corr_dropna(sub_df['vol'][i-20:i+1], sub_df['close'][i-20:i+1])
+        sub_dfs.append(sub_df)
+    transformed_df = pd.concat(sub_dfs)
+
+    return transformed_df.reindex_like(df)['corr']
+
+def get_volume_price_factors():
+    volume_price_factors = {}
+    volume_price_factors['FR'] = {'indicators': ['vol' for i in range(21)] + ['total_share' for i in range(21)] + ['gain' for i in range(21)], 'lag': list(range(21)) * 3, 'function': lambda df: [corr_dropna(df.iloc[i, :21].values / df.iloc[i, 21:42].values, df.iloc[i, 42:]) for i in range(len(df))]}
+    volume_price_factors['vp_div'] = {'indicators': ['vol'] * 21 + ['close'] * 21, 'lag': list(range(21)) * 2, 'function': lambda df: [corr_dropna(df.iloc[i, :21], df.iloc[i, 21:]) for i in range(len(df))]}
+    volume_price_factors['ranked_vp_div'] = {'indicators': ['vol'] * 21 + ['close'] * 21, 'lag': list(range(21)) * 2, 'rank': [True] * 21 * 2, 'function': lambda df: [corr_dropna(df.iloc[i, :21], df.iloc[i, 21:]) for i in range(len(df))]}
+    volume_price_factors['vp_chg_div'] = {'indicators': ['vol'] * 22 + ['close'] * 22, 'lag': list(range(22)) * 2, 'function': chg_div}
+    volume_price_factors['ranked_vp_chg_div'] = {'indicators': ['td'] + ['vol'] * 22 + ['close'] * 22, 'lag': [0] + list(range(22)) * 2, 'function': ranked_chg_div}
+    volume_price_factors['ts_ranked_vp_chg_div'] = {'indicators': ['codenum', 'vol', 'close'], 'function': ts_ranked_chg_div}
+    return volume_price_factors
+
+def get_WQ_factors():
+    WQ_factors = {}
+
+    WQ_factors['WQ028'] = {'indicators': ['high', 'low', 'close'], 'function': lambda df: (df.iloc[:, 0] + df.iloc[:, 1]) / 2 - df.iloc[:, 2]}
+    WQ_factors['WQ008'] = {'indicators': ['open'] * 10 + ['gain'] * 10, 'lag': list(range(10)) * 2, 'function': lambda df: df.iloc[:, 5:10].values.sum(axis = 1) * df.iloc[:, 15:].values.sum(axis = 1) - df.iloc[:, :5].values.sum(axis = 1) * df.iloc[:, 10:15].values.sum(axis = 1)}
+
+    #这个不行
+    #WQ_factors['WQ018'] = {'indicators': ['close' for i in range(21)] + ['open' for i in range(21)], 'lag': list(range(21)) * 2, 'function': lambda df: [corr_dropna(df.iloc[i, :21], df.iloc[i, 21:]) for i in range(len(df))]}
+    
+    return WQ_factors
 
 def get_all_factors():
     return {**get_basic_factors(), **get_value_factors(), **get_growth_factors(), **get_financial_quality_factors(), **get_leverage_factors(), **get_momentum_factors(), 

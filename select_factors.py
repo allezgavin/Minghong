@@ -86,12 +86,9 @@ def select_factors():
 def select_factors_in_reverse():
     factor_pool = pd.read_csv('factors.csv')
     factor_pool.dropna(subset = ['gain_next'], inplace = True) #Drops the most current date because gain_next is to be predicted
-    print(factor_pool)
     selected_td = factor_pool['td'].unique()[-260::5] # Select a day every week from the past year
-    print(selected_td)
     factor_pool = factor_pool.loc[factor_pool['td'].isin(selected_td)]
     factor_pool['td'].astype('str')
-    print(factor_pool)
     selected_cols = list(factor_pool.filter(like = 'factor_').columns)
     max_r2 = factor_regression(factor_pool[['td', 'codenum', 'gain_next'] + selected_cols])[2]
     flag = True
