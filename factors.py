@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from scipy.stats import pearsonr
-from backtest import *
+#from backtest import *
 
 def subtract(df):
     return df.iloc[:, 0] / df.iloc[:, 1]
@@ -12,23 +12,81 @@ def divide(df):
 def growth(df):
     return (df.iloc[:, 0] - df.iloc[:, 1]) / df.iloc[:, 1]
 
-def HAlpha60(df):
-    #df.columns is ['fd', 'codenum']
-    df_short = df.drop_duplicates().reset_index(drop = True)
-    df_short['end_date'] = pd.to_datetime(df_short['fd'], format = '%Y%m%d')
-    df_short['start_date'] = df_short['end_date'] - np.timedelta64(60, 'M') #60 months
-    alpha_list = []
-    for i in range(len(df_short)):
-        print(df_short['start_date'])
-        portfolio = pd.DataFrame()
-        portfolio['td'] = pd.date_range(start = df_short['start_date'][i], end = df_short['end_date'][i], freq = 'D').strftime('%Y%m%d')
-        portfolio['codenum'] = df_short['codenum'][i]
-        portfolio['weight'] = 1
-        alpha = backtest(df_short['start_date'][i].strftime(format = '%Y%m%d'), portfolio, end_date = df_short['end_date'][i].strftime(format = '%Y%m%d')).alpha
-        alpha_list.append(alpha)
-    df_short['alpha'] = alpha_list
-    df = pd.merge(df, df_short, how = 'left', on = ['fd', 'codenum'])
-    return df['alpha']
+def abs(x):
+    return np.abs(x)
+
+def log(x):
+    return np.log(x)
+
+def sign(x):
+    return np.sign(x)
+
+def delta(x, d):
+    return x - x.shift(d)
+
+def windowsum(x, d):
+    return x.rolling(window = d, min_periods = d).sum()
+
+def stddev(x, d):
+    return x.rolling(window = d, min_periods = d).std()
+
+def ts_rank(x, d):
+    return x.rolling(window = d, min_periods = d).apply(lambda x: (x.argsort().argsort().iloc[-1] + 1), raw=False)
+
+def ts_min(x, d):
+    return x.rolling(window = d, min_periods = d).min()
+
+def ts_max(x, d):
+    return x.rolling(window = d, min_periods = d).max()
+
+def ts_argmax(x, d):
+    return x.rolling(window = d, min_periods = d).apply(lambda x: np.argmax(x) + 1, raw=False)
+
+def ts_argmin(x, d):
+    return x.rolling(window = d, min_periods = d).apply(lambda x: np.argmin(x) + 1, raw=False)
+
+def rank(x):
+    return x.rank()
+
+def delay(x, d):
+    return x.shift(d)
+
+def correlation(x, y, d):
+    return x.rolling(window = d, min_periods = d).corr(y)
+
+def covariance(x, y, d):
+    return x.rolling(window = d, min_periods = d).cov(y)
+
+def scale(x, a=1):
+    return x * (a / np.sum(np.abs(x)))
+
+def signedpower(x, a):
+    return np.power(x, a)
+
+def decay_linear(x, d):
+    weights = np.arange(d, 0, -1)
+    return np.convolve(x, weights / weights.sum(), mode='valid')
+
+def indneutralize(x, g):
+    return x - g.groupby(level=0).transform('mean')
+
+# def HAlpha60(df):
+#     #df.columns is ['fd', 'codenum']
+#     df_short = df.drop_duplicates().reset_index(drop = True)
+#     df_short['end_date'] = pd.to_datetime(df_short['fd'], format = '%Y%m%d')
+#     df_short['start_date'] = df_short['end_date'] - np.timedelta64(60, 'M') #60 months
+#     alpha_list = []
+#     for i in range(len(df_short)):
+#         print(df_short['start_date'])
+#         portfolio = pd.DataFrame()
+#         portfolio['td'] = pd.date_range(start = df_short['start_date'][i], end = df_short['end_date'][i], freq = 'D').strftime('%Y%m%d')
+#         portfolio['codenum'] = df_short['codenum'][i]
+#         portfolio['weight'] = 1
+#         alpha = backtest(df_short['start_date'][i].strftime(format = '%Y%m%d'), portfolio, end_date = df_short['end_date'][i].strftime(format = '%Y%m%d')).alpha
+#         alpha_list.append(alpha)
+#     df_short['alpha'] = alpha_list
+#     df = pd.merge(df, df_short, how = 'left', on = ['fd', 'codenum'])
+#     return df['alpha']
 
 def moving_average(series, window_size = 5):
     # Define a kernel for 1D convolution to calculate the moving average
@@ -181,13 +239,13 @@ def get_codenum_factor():
 def corr_dropna(list1,list2):
     return pd.DataFrame([list(list1),list(list2)]).dropna(axis = 1).T.corr().iloc[0,1]
 
-def delta(df):
+def next_delta(df):
     return pd.DataFrame([df.iloc[:, i + 1] - df.iloc[:, i] for i in range(df.shape[1] - 1)]).T
 
 def chg_div(df):
     length = df.shape[1] // 2
-    df1 = delta(df.iloc[:, :length])
-    df2 = delta(df.iloc[:, length:])
+    df1 = next_delta(df.iloc[:, :length])
+    df2 = next_delta(df.iloc[:, length:])
     return [corr_dropna(df1.iloc[i, :], df2.iloc[i, :]) for i in range(len(df))]
 
 def ranked_chg_div(df):
@@ -195,9 +253,9 @@ def ranked_chg_div(df):
         raise TypeError('"td" should be in the DataFrame!')
     df_td = df['td']
     length = (df.shape[1] - 1) // 2
-    # Split into two dataframes for taking the delta
-    df1 = delta(df.drop('td', axis = 1).iloc[:, :length])
-    df2 = delta(df.drop('td', axis = 1).iloc[:, length:])
+    # Split into two dataframes for taking the next_delta
+    df1 = next_delta(df.drop('td', axis = 1).iloc[:, :length])
+    df2 = next_delta(df.drop('td', axis = 1).iloc[:, length:])
     # Concatenate back to a single dataframe
     df = pd.concat([df1, df2], axis = 1)
     df['td'] = df_td
@@ -228,20 +286,107 @@ def ts_ranked_chg_div(df):
 
 def get_volume_price_factors():
     volume_price_factors = {}
-    # volume_price_factors['FR'] = {'indicators': ['vol' for i in range(21)] + ['total_share' for i in range(21)] + ['gain' for i in range(21)], 'lag': list(range(21)) * 3, 'function': lambda df: [corr_dropna(df.iloc[i, :21].values / df.iloc[i, 21:42].values, df.iloc[i, 42:]) for i in range(len(df))]}
-    # volume_price_factors['vp_div'] = {'indicators': ['vol'] * 21 + ['close'] * 21, 'lag': list(range(21)) * 2, 'function': lambda df: [corr_dropna(df.iloc[i, :21], df.iloc[i, 21:]) for i in range(len(df))]}
-    # volume_price_factors['ranked_vp_div'] = {'indicators': ['vol'] * 21 + ['close'] * 21, 'lag': list(range(21)) * 2, 'rank': [True] * 21 * 2, 'function': lambda df: [corr_dropna(df.iloc[i, :21], df.iloc[i, 21:]) for i in range(len(df))]}
-    # volume_price_factors['vp_chg_div'] = {'indicators': ['vol'] * 22 + ['close'] * 22, 'lag': list(range(22)) * 2, 'function': chg_div}
-    # volume_price_factors['ranked_vp_chg_div'] = {'indicators': ['td'] + ['vol'] * 22 + ['close'] * 22, 'lag': [0] + list(range(22)) * 2, 'function': ranked_chg_div}
+    volume_price_factors['FR'] = {'indicators': ['vol' for i in range(21)] + ['total_share' for i in range(21)] + ['gain' for i in range(21)], 'lag': list(range(21)) * 3, 'function': lambda df: [corr_dropna(df.iloc[i, :21].values / df.iloc[i, 21:42].values, df.iloc[i, 42:]) for i in range(len(df))]}
+    volume_price_factors['vp_div'] = {'indicators': ['vol'] * 21 + ['close'] * 21, 'lag': list(range(21)) * 2, 'function': lambda df: [corr_dropna(df.iloc[i, :21], df.iloc[i, 21:]) for i in range(len(df))]}
+    volume_price_factors['ranked_vp_div'] = {'indicators': ['vol'] * 21 + ['close'] * 21, 'lag': list(range(21)) * 2, 'rank': [True] * 21 * 2, 'function': lambda df: [corr_dropna(df.iloc[i, :21], df.iloc[i, 21:]) for i in range(len(df))]}
+    volume_price_factors['vp_chg_div'] = {'indicators': ['vol'] * 22 + ['close'] * 22, 'lag': list(range(22)) * 2, 'function': chg_div}
+    volume_price_factors['ranked_vp_chg_div'] = {'indicators': ['td'] + ['vol'] * 22 + ['close'] * 22, 'lag': [0] + list(range(22)) * 2, 'function': ranked_chg_div}
     volume_price_factors['ts_ranked_vp_chg_div'] = {'indicators': ['codenum', 'vol', 'close'], 'function': ts_ranked_chg_div}
     return volume_price_factors
+
+def WQ007(df):
+
+    grouped = df.groupby('codenum')
+    output = pd.Series()
+    for code, sub_df in grouped:
+        sub_df['adv20'] = sub_df['vol'].rolling(window=20, min_periods=20).mean()
+
+        sub_df['alpha_factor'] = np.where(
+            sub_df['adv20'] < sub_df['vol'],
+            ((-1 * ts_rank(abs(delta(sub_df['close'], 7)), 60)) * sign(delta(sub_df['close'], 7))),
+            -1
+        )
+        output = pd.concat([output, sub_df['alpha_factor']])
+    print(output)
+    output = output.reindex(df.index)
+    print(output)
+
+    return output
+
+def WQ001(df):
+    grouped = df.groupby('codenum')
+    output = pd.Series()
+    for code, sub_df in grouped:
+        sub_df['factor'] = rank(ts_argmax(signedpower(pd.Series(data =
+                            np.where(
+                                sub_df['gain'] < 0,
+                                stddev(sub_df['gain'], 20),
+                                sub_df['close']
+                            ), index = sub_df.index)
+                            , 2), 5)) - 0.5
+        output = pd.concat([output, sub_df['factor']])
+    output.reindex(df.index)
+    return output
+
+def WQ002(df):
+    grouped = df.groupby('codenum')
+    output = pd.Series()
+    for code, sub_df in grouped:
+        sub_df['factor'] = -1 * correlation(rank(delta(log(sub_df['vol']), 2)), rank(((sub_df['close'] - sub_df['open']) / sub_df['open'])), 6)        
+        output = pd.concat([output, sub_df['factor']])
+    output.reindex(df.index)
+    return output
+
+def WQ003(df):
+    grouped = df.groupby('codenum')
+    output = pd.Series()
+    for code, sub_df in grouped:
+        sub_df['factor'] = (-1 * correlation(rank(sub_df['open']), rank(sub_df['vol']), 10))
+        output = pd.concat([output, sub_df['factor']])
+    output.reindex(df.index)
+    return output
+
+def WQ004(df):
+    grouped = df.groupby('codenum')
+    output = pd.Series()
+    for code, sub_df in grouped:
+        sub_df['factor'] = -1 * ts_rank(rank(sub_df['low']), 9)
+        output = pd.concat([output, sub_df['factor']])
+    output.reindex(df.index)
+    return output
+
+# Does not apply without VWAP data
+# def WQ005(df):
+#     grouped = df.groupby('codenum')
+#     output = pd.Series()
+#     for code, sub_df in grouped:
+#         sub_df['factor'] = (rank((open - (windowsum(sub_df['vwap'], 10) / 10))) * (-1 * abs(rank((sub_df['close'] - sub_df['vwap'])))))
+#         output = pd.concat([output, sub_df['factor']])
+#     output.reindex(df.index)
+#     return output
+
+def WQ006(df):
+    grouped = df.groupby('codenum')
+    output = pd.Series()
+    for code, sub_df in grouped:
+        sub_df['factor'] = -1 * correlation(sub_df['open'], sub_df['vol'], 10)
+        output = pd.concat([output, sub_df['factor']])
+    output.reindex(df.index)
+    return output
+
 
 def get_WQ_factors():
     WQ_factors = {}
 
-    WQ_factors['WQ028'] = {'indicators': ['high', 'low', 'close'], 'function': lambda df: (df.iloc[:, 0] + df.iloc[:, 1]) / 2 - df.iloc[:, 2]}
-    WQ_factors['WQ008'] = {'indicators': ['open'] * 10 + ['gain'] * 10, 'lag': list(range(10)) * 2, 'function': lambda df: df.iloc[:, 5:10].values.sum(axis = 1) * df.iloc[:, 15:].values.sum(axis = 1) - df.iloc[:, :5].values.sum(axis = 1) * df.iloc[:, 10:15].values.sum(axis = 1)}
-
+    # WQ_factors['WQ028'] = {'indicators': ['high', 'low', 'close'], 'function': lambda df: (df.iloc[:, 0] + df.iloc[:, 1]) / 2 - df.iloc[:, 2]}
+    # WQ_factors['WQ008'] = {'indicators': ['open'] * 10 + ['gain'] * 10, 'lag': list(range(10)) * 2, 'function': lambda df: df.iloc[:, 5:10].values.sum(axis = 1) * df.iloc[:, 15:].values.sum(axis = 1) - df.iloc[:, :5].values.sum(axis = 1) * df.iloc[:, 10:15].values.sum(axis = 1)}
+    #WQ_factors['WQ007'] = {'indicators': ['codenum', 'vol', 'close'], 'function': WQ007}
+    WQ_factors['WQ001'] = {'indicators': ['codenum', 'close', 'gain'], 'function': WQ001}
+    #WQ_factors['WQ002'] = {'indicators': ['codenum', 'vol', 'close', 'open'], 'function': WQ002}
+    #WQ_factors['WQ003'] = {'indicators': ['codenum', 'vol', 'open'], 'function': WQ003}
+    #WQ_factors['WQ004'] = {'indicators': ['codenum', 'low'], 'function': WQ004}
+    #WQ_factors['WQ005'] = {'indicators': ['codenum', 'open', 'close', 'vwap'], 'function': WQ005}
+    #WQ_factors['WQ006'] = {'indicators': ['codenum', 'open', 'vol'], 'function': WQ006}
     #这个不行
     #WQ_factors['WQ018'] = {'indicators': ['close' for i in range(21)] + ['open' for i in range(21)], 'lag': list(range(21)) * 2, 'function': lambda df: [corr_dropna(df.iloc[i, :21], df.iloc[i, 21:]) for i in range(len(df))]}
     
