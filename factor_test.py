@@ -7,15 +7,6 @@ pd.set_option('mode.chained_assignment', None)
 td_group = {}
 codenum_group = {}
 
-# def groupcalc(df, func):
-#     grouped = df.groupby('codenum')
-#     output = pd.Series()
-#     for code, sub_df in grouped:
-#         sub_df['factor'] = func(sub_df)
-#         output = pd.concat([output, sub_df['factor']])
-#     output.reindex(df.index)
-#     return output
-
 def abs(x):
     return np.abs(x)
 
@@ -37,13 +28,6 @@ def ts_sum(x, d):
     for indices in codenum_group.values():
         sub_x = x.loc[indices]
         output = pd.concat([output, sub_x.rolling(window = d, min_periods = d).sum()])
-    return output.reindex(x.index)
-
-def stddev(x, d):
-    output = pd.Series()
-    for indices in codenum_group.values():
-        sub_x = x.loc[indices]
-        output = pd.concat([output, sub_x.rolling(window = d, min_periods = d).std()])
     return output.reindex(x.index)
 
 def ts_rank(x, d):
@@ -141,27 +125,6 @@ def decay_linear(x, d):
         sub_x = x.loc[indices]
         output = pd.concat([output, np.convolve(sub_x, weights / weights.sum(), mode='valid')])
     return output.reindex(x.index)
-
-# def indneutralize(x, g):
-#     return x - g.groupby(level=0).transform('mean')
-
-def moving_average(series, window_size = 5):
-    # Define a kernel for 1D convolution to calculate the moving average
-    kernel = np.ones(window_size) / (window_size)
-
-    # Calculate the padding needed for the input series
-    pad_width = (window_size - 1) // 2
-    padded_series = np.pad(series, (pad_width, pad_width), mode='edge')
-
-    # Use the numpy convolution function to calculate the moving average
-    return np.convolve(padded_series, kernel, mode='valid')
-
-def weighted_gain_codenum(df):
-    original_order = df[['td', 'codenum']]
-    df['moving_avg_gain'] = df.sort_values('codenum').groupby('td')['gain'].transform(moving_average)
-    df = pd.merge(original_order, df, on = ['td', 'codenum'])
-    return df['moving_avg_gain']
-
 
 def get_basic_factors():
     basic_factors = {}
@@ -299,9 +262,17 @@ def get_modified_momentum_factors():
     modified_momentum_factors['weighted_strength_12m'] = {'indicators': ['gain', 'vol'], 'function': lambda df: ts_sum(df['gain'] * df['vol'], 12 * 21)}
     return modified_momentum_factors
 
+
+def codenum_adjacency(df):
+    output = pd.Series()
+    for sub_df in df.sort_values('codenum').groupby('td'):
+        sub_df['adjacent_gain'] = sub_df['gain'].rolling(window = 5).sum()
+        output = pd.concat([output, sub_df['adjacent_gain']])
+    return output.reindex(df.index)
+
 def get_codenum_factor():
     codenum_factor = {}
-    codenum_factor['codenum_adjacency'] = {'indicators': ['td', 'codenum', 'gain'], 'function': weighted_gain_codenum}
+    codenum_factor['codenum_adjacency'] = {'indicators': ['td', 'codenum', 'gain'], 'function': codenum_adjacency}
     return codenum_factor
 
 def ranked_chg_div(df):
@@ -328,7 +299,7 @@ def WQ001(df):
     return rank(ts_argmax(signedpower(pd.Series(data =
                             np.where(
                                 df['gain'] < 0,
-                                stddev(df['gain'], 20),
+                                ts_std(df['gain'], 20),
                                 df['close']
                             ), index = df.index)
                             , 2), 5)) - 0.5
@@ -351,7 +322,7 @@ def WQ006(df):
     return -1 * correlation(df['open'], df['vol'], 10)
 
 def WQ007(df):
-    df['adv20'] = df.groupby('codenum')['vol'].rolling(window=20, min_periods=20).mean()
+    df['adv20'] = df.groupby('codenum')['vol'].transform(lambda x: x.rolling(window=20, min_periods=20).mean())
     return np.where(df['adv20'] < df['vol'],
         ((-1 * ts_rank(abs(delta(df['close'], 7)), 60)) * sign(delta(df['close'], 7))),
         -1
@@ -392,15 +363,16 @@ def WQ012(df):
 
 def get_WQ_factors():
     WQ_factors = {}
-    WQ_factors['WQ001'] = {'indicators': ['codenum', 'close', 'gain'], 'function': WQ001}
-    WQ_factors['WQ002'] = {'indicators': ['codenum', 'vol', 'close', 'open'], 'function': WQ002}
+    # WQ_factors['WQ001'] = {'indicators': ['codenum', 'close', 'gain'], 'function': WQ001}
+    # WQ_factors['WQ002'] = {'indicators': ['codenum', 'vol', 'close', 'open'], 'function': WQ002}
     WQ_factors['WQ003'] = {'indicators': ['codenum', 'vol', 'open'], 'function': WQ003}
-    WQ_factors['WQ004'] = {'indicators': ['codenum', 'low'], 'function': WQ004}
+    # WQ_factors['WQ004'] = {'indicators': ['codenum', 'low'], 'function': WQ004}
     WQ_factors['WQ006'] = {'indicators': ['codenum', 'open', 'vol'], 'function': WQ006}
     WQ_factors['WQ007'] = {'indicators': ['codenum', 'vol', 'close'], 'function': WQ007}
     WQ_factors['WQ008'] = {'indicators': ['codenum', 'open', 'gain'], 'function': WQ008}
     WQ_factors['WQ009'] = {'indicators': ['codenum', 'close'], 'function': WQ009}
     WQ_factors['WQ010'] = {'indicators': ['codenum', 'close'], 'function': WQ010}
+    # WQ_factors['WQ012'] = {'indicators': ['vol', 'close'], 'function': WQ012}
     WQ_factors['WQ018'] = {'indicators': ['close', 'open'], 'function': lambda df: correlation(df['close'], df['open'], 21)}
     WQ_factors['WQ028'] = {'indicators': ['high', 'low', 'close'], 'function': lambda df: (df['high'] + df['low']) / 2 - df['close']}
     return WQ_factors
@@ -695,6 +667,6 @@ if __name__ == '__main__':
 
     #stocks_tested = random_stocks(500, start_date, end_date)
 
-    #test_factor(start_date, end_date, get_volatility_factors(), stocks = csi300_stocks())
+    test_factor(start_date, end_date, get_WQ_factors(), stocks = csi300_stocks())
 
     #test_factor(start_date, end_date, {'relative_strength_1m':get_momentum_factors()['relative_strength_1m']}, stocks = csi300_stocks())
