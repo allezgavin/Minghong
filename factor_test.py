@@ -7,6 +7,7 @@ pd.set_option('mode.chained_assignment', None)
 td_group = {}
 codenum_group = {}
 
+# Define operations
 def abs(x):
     return np.abs(x)
 
@@ -126,20 +127,18 @@ def decay_linear(x, d):
         output = pd.concat([output, np.convolve(sub_x, weights / weights.sum(), mode='valid')])
     return output.reindex(x.index)
 
-def get_basic_factors():
-    basic_factors = {}
-    basic_factors['PE'] = {'indicators': ['close', 'EPS'], 'function': lambda df: df['close'] / df['EPS']}
-    basic_factors['netprofitrate'] = {'indicators': ['netprofitrate']}
-    return basic_factors
+# Definitions of factors
 
-# # Does not apply under market cap neutralization
-# def get_size_factor():
-#     size_factor = {}
-#     size_factor['ln_capital'] = {'indicators': ['market_cap'], 'function': lambda x: np.log(x.iloc[:, 0])}
-#     return size_factor
+# Must have no exposure. Controlled by quadratic programming
+def get_size_factor():
+    size_factor = {}
+    size_factor['ln_market_cap'] = {'indicators': ['market_cap'], 'function': lambda x: np.log(x.iloc[:, 0])}
+    return size_factor
 
 def get_value_factors():
     value_factors = {}
+    value_factors['PE'] = {'indicators': ['close', 'EPS'], 'function': lambda df: df['close'] / df['EPS']}
+    value_factors['netprofitrate'] = {'indicators': ['netprofitrate']}
     value_factors['EP'] = {'indicators': ['net_profit', 'market_cap'], 'function': lambda df: df['net_profit'] / df['market_cap']}
     value_factors['EPCut'] = {'indicators': ['deducted_profit', 'market_cap'], 'function': lambda df: df['deducted_profit'] / df['market_cap']}
     value_factors['BP'] = {'indicators': ['total_assets', 'market_cap'], 'function': lambda df: df['total_assets'] / df['market_cap']}
@@ -157,7 +156,7 @@ def get_growth_factors():
     return growth_factors
 
 def get_financial_quality_factors():
-    financial_quality_factors = {} #TTM or of that quarter?
+    financial_quality_factors = {}
     financial_quality_factors['ROE'] = {'indicators': ['net_profit', 'total_shareholders_equity'], 'function': lambda df: df['net_profit'] / df['total_shareholders_equity']}
     financial_quality_factors['ROA'] = {'indicators': ['net_profit', 'total_assets'], 'function': lambda df: df['net_profit'] / df['total_assets']}
     financial_quality_factors['grossprofitmargin'] = {'indicators': ['grossmargin']}
@@ -169,17 +168,13 @@ def get_financial_quality_factors():
 def get_leverage_factors():
     leverage_factors = {}
     leverage_factors['market_value_leverage'] = {'indicators': ['market_cap', 'total_noncurrent_liabilities'], #also preferred stocks should be included
-                                                'function': lambda x: (x.iloc[:, 0] + x.iloc[:, 1]) / x.iloc[:, 0]}
+                                                'function': lambda df: (df['market_cap'] + df['total_noncurrent_liabilities']) / df['market_cap']}
     leverage_factors['financial_leverage'] = {'indicators': ['total_assets', 'total_shareholders_equity'], 'function': lambda df: df['total_assets'] / df['total_shareholders_equity']}
     leverage_factors['debtequityratio'] = {'indicators': ['total_noncurrent_liabilities', 'total_shareholders_equity'], 'function': lambda df: df['total_noncurrent_liabilities'] / df['total_shareholders_equity']}
     leverage_factors['cashratio'] = {'indicators': ['cash', 'account_receivable', 'total_current_liabilities'],
                                     'function': lambda df: (df['cash'] + df['account_receivable']) / df['total_current_liabilities']}
     leverage_factors['currentratio'] = {'indicators': ['total_current_assets', 'total_current_liabilities'], 'function': lambda df: df['total_current_assets'] / df['total_current_liabilities']}
-
     return leverage_factors
-
-# def get_size_factor():
-#     return size_factor
 
 def HAlpha(df):
     months = 6
@@ -204,6 +199,15 @@ def get_momentum_factors():
     momentum_factors = {}
     momentum_factors['HALpha'] = {'indicators': ['td', 'codenum', 'gain'], 'function': HAlpha}
     momentum_factors['relative_strength_1m'] = {'indicators': ['close'], 'function': lambda df: delta(df['close'], 1 * 21)}
+    momentum_factors['relative_strength_2m'] = {'indicators': ['close'], 'function': lambda df: delta(df['close'], 2 * 21)}
+    momentum_factors['relative_strength_3m'] = {'indicators': ['close'], 'function': lambda df: delta(df['close'], 3 * 21)}
+    momentum_factors['relative_strength_6m'] = {'indicators': ['close'], 'function': lambda df: delta(df['close'], 6 * 21)}
+    momentum_factors['relative_strength_12m'] = {'indicators': ['close'], 'function': lambda df: delta(df['close'], 12 * 21)}
+    momentum_factors['weighted_strength_1m'] = {'indicators': ['gain', 'vol'], 'function': lambda df: ts_sum(df['gain'] * df['vol'], 1 * 21)}
+    momentum_factors['weighted_strength_2m'] = {'indicators': ['gain', 'vol'], 'function': lambda df: ts_sum(df['gain'] * df['vol'], 2 * 21)}
+    momentum_factors['weighted_strength_3m'] = {'indicators': ['gain', 'vol'], 'function': lambda df: ts_sum(df['gain'] * df['vol'], 3 * 21)}
+    momentum_factors['weighted_strength_6m'] = {'indicators': ['gain', 'vol'], 'function': lambda df: ts_sum(df['gain'] * df['vol'], 6 * 21)}
+    momentum_factors['weighted_strength_12m'] = {'indicators': ['gain', 'vol'], 'function': lambda df: ts_sum(df['gain'] * df['vol'], 12 * 21)}
     return momentum_factors
 
 def beta_consistency(df):
@@ -234,7 +238,6 @@ def get_volatility_factors():
     volatility_factors['high_low_3m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 3 * 21) / ts_max(df['low'], 3 * 21)}
     volatility_factors['high_low_6m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 6 * 21) / ts_max(df['low'], 6 * 21)}
     volatility_factors['high_low_12m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 12 * 21) / ts_max(df['low'], 12 * 21)}
-
     volatility_factors['std_1m'] = {'indicators': ['high'], 'function': lambda df: ts_std(df['high'], 6 * 21)}
     volatility_factors['std_2m'] = {'indicators': ['high'], 'function': lambda df: ts_std(df['high'], 6 * 21)}
     volatility_factors['std_3m'] = {'indicators': ['high'], 'function': lambda df: ts_std(df['high'], 6 * 21)}
@@ -255,13 +258,8 @@ def get_turnover_factors():
 
 def get_modified_momentum_factors():
     modified_momentum_factors = {}
-    modified_momentum_factors['weighted_strength_1m'] = {'indicators': ['gain', 'vol'], 'function': lambda df: ts_sum(df['gain'] * df['vol'], 1 * 21)}
-    modified_momentum_factors['weighted_strength_2m'] = {'indicators': ['gain', 'vol'], 'function': lambda df: ts_sum(df['gain'] * df['vol'], 2 * 21)}
-    modified_momentum_factors['weighted_strength_3m'] = {'indicators': ['gain', 'vol'], 'function': lambda df: ts_sum(df['gain'] * df['vol'], 3 * 21)}
-    modified_momentum_factors['weighted_strength_6m'] = {'indicators': ['gain', 'vol'], 'function': lambda df: ts_sum(df['gain'] * df['vol'], 6 * 21)}
-    modified_momentum_factors['weighted_strength_12m'] = {'indicators': ['gain', 'vol'], 'function': lambda df: ts_sum(df['gain'] * df['vol'], 12 * 21)}
+    
     return modified_momentum_factors
-
 
 def codenum_adjacency(df):
     output = pd.Series()
@@ -288,8 +286,9 @@ def ts_ranked_chg_div(df):
 def get_volume_price_factors():
     volume_price_factors = {}
     volume_price_factors['FR'] = {'indicators': ['vol', 'total_share', 'gain'], 'function': lambda df: correlation(df['vol'] / df['total_share'], df['gain'], 21)}
-    volume_price_factors['vp_div'] = {'indicators': ['vol', 'close'], 'function': lambda df: correlation(df['vol'], df['close'], 21)}
-    volume_price_factors['ranked_vp_chg_div'] = {'indicators': ['vol', 'close'], 'function': lambda df: correlation(rank(df['vol']), rank(df['close']), 21)}
+    volume_price_factors['WQ003'] = {'indicators': ['codenum', 'vol', 'open'], 'function': lambda df: (-1 * correlation(rank(df['open']), rank(df['vol']), 10))}
+    volume_price_factors['WQ006'] = {'indicators': ['codenum', 'open', 'vol'], 'function': lambda df: -1 * correlation(df['open'], df['vol'], 10)}
+    # volume_price_factors['WQ012'] = {'indicators': ['vol', 'close'], 'function': lambda df: sign(delta(df['vol'], 1)) * (-1 * delta(df['close'], 1))}
     volume_price_factors['vp_chg_div'] = {'indicators': ['vol', 'close'], 'function': lambda df: correlation(delta(df['vol'], 1), delta(df['close'], 1), 21)}
     volume_price_factors['ranked_vp_chg_div'] = {'indicators': ['vol', 'close'], 'function': ranked_chg_div}
     volume_price_factors['ts_ranked_vp_chg_div'] = {'indicators': ['vol', 'close'], 'function': ts_ranked_chg_div}
@@ -304,22 +303,6 @@ def WQ001(df):
                             ), index = df.index)
                             , 2), 5)) - 0.5
 
-
-def WQ002(df):
-    return -1 * correlation(rank(delta(log(df['vol']), 2)), rank(((df['close'] - df['open']) / df['open'])), 6)
-
-def WQ003(df):
-    return (-1 * correlation(rank(df['open']), rank(df['vol']), 10))
-
-def WQ004(df):
-    return -1 * ts_rank(rank(df['low']), 9)
-
-# Does not apply without VWAP data
-# def WQ005(df):
-#     return (rank((open - (ts_sum(df['vwap'], 10) / 10))) * (-1 * abs(rank((df['close'] - df['vwap'])))))
-
-def WQ006(df):
-    return -1 * correlation(df['open'], df['vol'], 10)
 
 def WQ007(df):
     df['adv20'] = df.groupby('codenum')['vol'].transform(lambda x: x.rolling(window=20, min_periods=20).mean())
@@ -352,38 +335,31 @@ def WQ010(df):
                             ), index = df.index)
     )
 
-def WQ011(df):
-    # Does not work without vwap
-    # ((rank(ts_max((vwap - close), 3)) + rank(ts_min((vwap - close), 3))) * rank(delta(volume, 3)))
-    return None
-
-def WQ012(df):
-    # Oversimplistic. Quite useless
-    return sign(delta(df['vol'], 1)) * (-1 * delta(df['close'], 1))
-
 def get_WQ_factors():
     WQ_factors = {}
     # WQ_factors['WQ001'] = {'indicators': ['codenum', 'close', 'gain'], 'function': WQ001}
-    # WQ_factors['WQ002'] = {'indicators': ['codenum', 'vol', 'close', 'open'], 'function': WQ002}
-    WQ_factors['WQ003'] = {'indicators': ['codenum', 'vol', 'open'], 'function': WQ003}
-    # WQ_factors['WQ004'] = {'indicators': ['codenum', 'low'], 'function': WQ004}
-    WQ_factors['WQ006'] = {'indicators': ['codenum', 'open', 'vol'], 'function': WQ006}
+    # WQ_factors['WQ002'] = {'indicators': ['codenum', 'vol', 'close', 'open'], 'function': lambda df: -1 * correlation(rank(delta(log(df['vol']), 2)), rank(((df['close'] - df['open']) / df['open'])), 6)}
+    # WQ_factors['WQ004'] = {'indicators': ['codenum', 'low'], 'function': lambda df: -1 * ts_rank(rank(df['low']), 9)}
     WQ_factors['WQ007'] = {'indicators': ['codenum', 'vol', 'close'], 'function': WQ007}
     WQ_factors['WQ008'] = {'indicators': ['codenum', 'open', 'gain'], 'function': WQ008}
     WQ_factors['WQ009'] = {'indicators': ['codenum', 'close'], 'function': WQ009}
     WQ_factors['WQ010'] = {'indicators': ['codenum', 'close'], 'function': WQ010}
-    # WQ_factors['WQ012'] = {'indicators': ['vol', 'close'], 'function': WQ012}
     WQ_factors['WQ018'] = {'indicators': ['close', 'open'], 'function': lambda df: correlation(df['close'], df['open'], 21)}
     WQ_factors['WQ028'] = {'indicators': ['high', 'low', 'close'], 'function': lambda df: (df['high'] + df['low']) / 2 - df['close']}
     return WQ_factors
 
+def get_factor_group_list():
+    return [get_value_factors(), get_growth_factors(), get_financial_quality_factors(), get_leverage_factors(), get_momentum_factors(), 
+            get_volatility_factors(), get_turnover_factors(), get_modified_momentum_factors(), get_codenum_factor(), get_volume_price_factors, get_WQ_factors]
+
 def get_all_factors():
-    return {**get_basic_factors(), **get_value_factors(), **get_growth_factors(), **get_financial_quality_factors(), **get_leverage_factors(), **get_momentum_factors(), 
-            **get_volatility_factors(), **get_turnover_factors(), **get_modified_momentum_factors(), **get_codenum_factor()}
+    factor_dict = {}
+    for factor_group in get_factor_group_list():
+        factor_dict = {**factor_dict, **factor_group}
+    return factor_dict
 
 
-# Factor calculations and tests below
-
+# Factor calculations and tests
 def last_day_of_last_quarter(current_date):
     quarters_finished = (current_date.month - 1) // 3
     return datetime.date(current_date.year, quarters_finished * 3 + 1, 1) + datetime.timedelta(days=-(1))

@@ -1,5 +1,6 @@
 from factor_test import *
 from sklearn.metrics import r2_score
+from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 def predict_gain(df):
     factor_cols = df.filter(like = 'factor_').columns
@@ -37,59 +38,50 @@ def factor_regression(factors_df_or_filepath):
     return gain_regress_series, residual_df, merged_df['adjusted_r2'].mean()
 
 def select_factors():
+
     factor_pool = pd.read_csv('factors.csv')
     factor_pool.dropna(subset = ['gain_next'], inplace = True) #Drops the most current date because gain_next is to be predicted
     selected_td = factor_pool['td'].unique()[-260::5] # Select a day every week from the past year
     factor_pool = factor_pool.loc[factor_pool['td'].isin(selected_td)]
     factor_pool['td'].astype('str')
+
+    factor_group_list = get_factor_group_list()
+
+    #Round 1
+    group_num = 0
     selected_cols = []
-    remaining_cols = list(factor_pool.filter(like = 'factor_').columns)
-    max_r2 = 0
-    flag = True
+    for group in factor_group_list:
+        group_num += 1
+        factors_in_group = group.keys()
 
-    while flag:
-        flag = False
-        for col in remaining_cols:
-            print('Selected factors:', selected_cols)
-            print('Testing factor:', col)
+        group_remaining_cols = ['factor_' + factor_name for factor_name in factors_in_group]
+        group_selected_cols = []
+        max_r2 = 0
+        flag = True
+        while flag:
+            flag = False
+            for col in group_remaining_cols:
+                print('Selected factors:', group_selected_cols)
+                print('Testing factor:', col)
 
-            r2 = factor_regression(factor_pool[['td', 'codenum', 'gain_next'] + selected_cols + [col]])[2]
-            print('Adjusted r-squared: {:.4f}/{:.4f}\n'.format(r2, max_r2))
+                r2 = factor_regression(factor_pool[['td', 'codenum', 'gain_next'] + group_selected_cols + [col]])[2]
+                print('Adjusted r-squared: {:.4f}/{:.4f}\n'.format(r2, max_r2))
 
-            if r2 - 0.01 > max_r2: # Reduce the number of factors
-                max_r2 = r2
-                best_col = col
-                flag = True
-        if flag == True:
-            remaining_cols.remove(best_col)
-            selected_cols.append(best_col)
-    
-    print('Factors selected!\nAdjusted r-squared:', max_r2)
+                if r2 - 0.01 > max_r2: # Reduce the number of factors
+                    max_r2 = r2
+                    best_col = col
+                    flag = True
+            if flag == True:
+                vif = [variance_inflation_factor(factor_pool[[best_col] + group_selected_cols].values, i) for i in range(1 + len(group_selected_cols))]
+                if max(vif) < 10:
+                    group_remaining_cols.remove(best_col)
+                    group_selected_cols.append(best_col)
+                else:
+                    flag = False
 
-    # Create 'factors_selected.csv'
-    factor_pool = pd.read_csv('factors.csv')
-    factors_selected = factor_pool[['td', 'codenum', 'gain_next'] + selected_cols]
-    # Decolinearization!
-    appended_cols = []
-    for col in selected_cols:
-        if len(appended_cols) > 0:
-            factor_colinear = LinearRegression()
-            factor_colinear.fit(factor_pool[appended_cols], factor_pool[col])
-            res = factor_pool[col] - factor_colinear.predict(factor_pool[appended_cols])
-            factors_selected[col] = res
-        else:
-            factors_selected[col] = factor_pool[col]
-        appended_cols.append(col)
-    factors_selected.to_csv('factors_selected.csv', index = False)
-    print('factors_selected.csv filled!')
+        print(f'Factors from group {group_num} selected!\nAdjusted r-squared: {max_r2}\nMax variance inflation factor: {max(vif)}')
 
-def select_factors_in_reverse():
-    factor_pool = pd.read_csv('factors.csv')
-    factor_pool.dropna(subset = ['gain_next'], inplace = True) #Drops the most current date because gain_next is to be predicted
-    selected_td = factor_pool['td'].unique()[-260::5] # Select a day every week from the past year
-    factor_pool = factor_pool.loc[factor_pool['td'].isin(selected_td)]
-    factor_pool['td'].astype('str')
-    selected_cols = list(factor_pool.filter(like = 'factor_').columns)
+    #Round 2
     max_r2 = factor_regression(factor_pool[['td', 'codenum', 'gain_next'] + selected_cols])[2]
     flag = True
 
@@ -98,33 +90,39 @@ def select_factors_in_reverse():
         for col in selected_cols:
             print('Selected factors:', selected_cols)
             print('Testing factor:', col)
-
             r2 = factor_regression(factor_pool[['td', 'codenum', 'gain_next'] + selected_cols].drop(col, axis = 1))[2]
-            print('Adjusted r-squared: {:.4f}/{:.4f}\n'.format(r2, max_r2))
+            print('Adjusted r-squared: {:.4f}/{:.4f}'.format(r2, max_r2))
+            
 
-            if r2 - 0.01 > max_r2: # Reduce the number of factors
+            if r2 > max_r2 - 0.01: # Reduce the number of factors
                 max_r2 = r2
                 worst_col = col
                 flag = True
-        if flag == True:
+
+        vif = [variance_inflation_factor(factor_pool[selected_cols].values, i) for i in range(len(selected_cols))]
+        print('Max variance inflation factor: {:.4f}\n'.format(max(vif)))
+        if flag == True or max(vif) > 5:
             selected_cols.remove(worst_col)
-    
-    print('Factors selected!\nAdjusted r-squared:', max_r2)
+
+    print(f'Factors selected!\nAdjusted r-squared: {max_r2}\nVariance inflation factor: {max(vif)}')
+
 
     # Create 'factors_selected.csv'
     factor_pool = pd.read_csv('factors.csv')
     factors_selected = factor_pool[['td', 'codenum', 'gain_next'] + selected_cols]
-    # Decolinearization!
-    appended_cols = []
-    for col in selected_cols:
-        if len(appended_cols) > 0:
-            factor_colinear = LinearRegression()
-            factor_colinear.fit(factor_pool[appended_cols], factor_pool[col])
-            res = factor_pool[col] - factor_colinear.predict(factor_pool[appended_cols])
-            factors_selected[col] = res
-        else:
-            factors_selected[col] = factor_pool[col]
-        appended_cols.append(col)
+
+    # # Decolinearization. Needless now because maximum VIF is less than 5.
+    # appended_cols = []
+    # for col in selected_cols:
+    #     if len(appended_cols) > 0:
+    #         factor_colinear = LinearRegression()
+    #         factor_colinear.fit(factor_pool[appended_cols], factor_pool[col])
+    #         res = factor_pool[col] - factor_colinear.predict(factor_pool[appended_cols])
+    #         factors_selected[col] = res
+    #     else:
+    #         factors_selected[col] = factor_pool[col]
+    #     appended_cols.append(col)
+
     factors_selected.to_csv('factors_selected.csv', index = False)
     print('factors_selected.csv filled!')
 
