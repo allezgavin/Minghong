@@ -24,10 +24,9 @@ def factor_regression(factors_df_or_filepath):
     else:
         raise Exception('Please input a pandas DataFrame or its filepath!')
     
-    grouped_by_td = merged_df.sort_values('td', ascending = True).groupby('td')
     gain_regress_series = []
     sub_dfs = []
-    for td, group_data in grouped_by_td:
+    for td, group_data in merged_df.groupby('td'):
         sub_df, sub_gain_regress = predict_gain(group_data)
         sub_dfs.append(sub_df)
         gain_regress_series.append(sub_gain_regress)
@@ -50,6 +49,7 @@ def select_factors():
     #Round 1
     group_num = 0
     selected_cols = []
+    vif = [1]
     for group in factor_group_list:
         group_num += 1
         factors_in_group = group.keys()
@@ -64,52 +64,71 @@ def select_factors():
                 print('Selected factors:', group_selected_cols)
                 print('Testing factor:', col)
 
-                r2 = factor_regression(factor_pool[['td', 'codenum', 'gain_next'] + group_selected_cols + [col]])[2]
+                # Factors with a significant portion of missing values are penalized by a lower r2.
+                r2 = factor_regression(factor_pool[['td', 'codenum', 'gain_next'] + group_selected_cols + [col]].fillna(0))[2]
                 print('Adjusted r-squared: {:.4f}/{:.4f}\n'.format(r2, max_r2))
 
-                if r2 - 0.01 > max_r2: # Reduce the number of factors
+                if r2 > max_r2 + 0.005: # Reduce the number of factors
                     max_r2 = r2
                     best_col = col
                     flag = True
-            if flag == True:
-                vif = [variance_inflation_factor(factor_pool[[best_col] + group_selected_cols].values, i) for i in range(1 + len(group_selected_cols))]
-                if max(vif) < 10:
-                    group_remaining_cols.remove(best_col)
-                    group_selected_cols.append(best_col)
-                else:
-                    flag = False
 
-        print(f'Factors from group {group_num} selected!\nAdjusted r-squared: {max_r2}\nMax variance inflation factor: {max(vif)}')
+            if flag == True:
+                group_remaining_cols.remove(best_col)
+                group_selected_cols.append(best_col)
+                
+                if len(group_selected_cols) > 1:
+                    vif = [variance_inflation_factor(factor_pool[group_selected_cols].dropna(axis = 0).values, i) for i in range(len(group_selected_cols))]
+                    if max(vif) > 5:
+                        flag = False
+                if len(group_remaining_cols) == 0:
+                    flag = False
+        
+        if len(group_selected_cols) > 0:
+            selected_cols += group_selected_cols
+            print(f'Factors from group {group_num} selected!\nAdjusted r-squared: {max_r2}\nMax variance inflation factor: {max(vif)}\n')
+        else:
+            print(f'None of the factors from group {group_num} is selected.')
 
     #Round 2
-    max_r2 = factor_regression(factor_pool[['td', 'codenum', 'gain_next'] + selected_cols])[2]
+    max_r2 = factor_regression(factor_pool[['td', 'codenum', 'gain_next'] + selected_cols].fillna(0))[2]
+    last_rem_r2 = max_r2
     flag = True
 
     while flag:
         flag = False
+        vif = [variance_inflation_factor(factor_pool[selected_cols].dropna(axis = 0).values, i) for i in range(len(selected_cols))]
+        print('\nMax variance inflation factor: {:.4f}\n'.format(max(vif)))
+        rem_r2 = 0
         for col in selected_cols:
             print('Selected factors:', selected_cols)
             print('Testing factor:', col)
-            r2 = factor_regression(factor_pool[['td', 'codenum', 'gain_next'] + selected_cols].drop(col, axis = 1))[2]
-            print('Adjusted r-squared: {:.4f}/{:.4f}'.format(r2, max_r2))
+            r2 = factor_regression(factor_pool[['td', 'codenum', 'gain_next'] + selected_cols].drop(col, axis = 1).fillna(0))[2]
+            print('Adjusted r-squared: {:.4f}/{:.4f}'.format(r2, rem_r2))
             
-
-            if r2 > max_r2 - 0.01: # Reduce the number of factors
-                max_r2 = r2
+            if r2 > rem_r2:
                 worst_col = col
-                flag = True
+                rem_r2 = r2
+                if r2 > max_r2:
+                    max_r2 = r2
+                    flag = True
 
-        vif = [variance_inflation_factor(factor_pool[selected_cols].values, i) for i in range(len(selected_cols))]
-        print('Max variance inflation factor: {:.4f}\n'.format(max(vif)))
-        if flag == True or max(vif) > 5:
+        if flag == True or max(vif) > 10:
             selected_cols.remove(worst_col)
+            print(f'{worst_col} dropped!')
+            flag = True
+            last_rem_r2 = rem_r2
 
-    print(f'Factors selected!\nAdjusted r-squared: {max_r2}\nVariance inflation factor: {max(vif)}')
-
+    print(f'Factors selected!\nAdjusted r-squared: {last_rem_r2}\nVariance inflation factor: {max(vif)}\n')
+    
+    # # Must be included for market cap neutralization
+    # if get_size_factor()['ln_market_cap'] not in selected_cols:
+    #     selected_cols.append(get_size_factor()['ln_market_cap'])
 
     # Create 'factors_selected.csv'
     factor_pool = pd.read_csv('factors.csv')
-    factors_selected = factor_pool[['td', 'codenum', 'gain_next'] + selected_cols]
+    print(selected_cols)
+    factors_selected = factor_pool[['td', 'codenum', 'gain_next'] + selected_cols].dropna(subset=selected_cols)
 
     # # Decolinearization. Needless now because maximum VIF is less than 5.
     # appended_cols = []
@@ -156,13 +175,15 @@ def reselect_factors(start_date, stocks = []):
 
 if __name__ == '__main__':
 
-    start_date = 20200101
+    start_date = 20210101
     end_date = 20230730
 
     if start_date >= end_date:
         raise ValueError('Date Error!')
     
     # random.seed(4)
-    # stocks_tested = random_stocks(200, start_date, end_date)
+    # stocks_tested = list(set(list(random_stocks(300, start_date, end_date)) + list(csi300_stocks())))
+    # reselect_factors(start_date, stocks = stocks_tested)
 
     select_factors()
+    factor_regression_history()
