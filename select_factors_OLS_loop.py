@@ -121,9 +121,9 @@ def select_factors():
 
     print(f'Factors selected!\nAdjusted r-squared: {last_rem_r2}\nVariance inflation factor: {max(vif)}\n')
     
-    # # Must be included for market cap neutralization
-    # if get_size_factor()['ln_market_cap'] not in selected_cols:
-    #     selected_cols.append(get_size_factor()['ln_market_cap'])
+    # Must be included for market cap neutralization
+    if 'factor_ln_market_cap' not in selected_cols:
+        selected_cols.append('factor_ln_market_cap')
 
     # Create 'factors_selected.csv'
     factor_pool = pd.read_csv('factors.csv')
@@ -181,9 +181,6 @@ if __name__ == '__main__':
     if start_date >= end_date:
         raise ValueError('Date Error!')
     
-    # random.seed(4)
-    # stocks_tested = list(set(list(random_stocks(300, start_date, end_date)) + list(csi300_stocks())))
-    # reselect_factors(start_date, stocks = stocks_tested)
-
-    select_factors()
-    factor_regression_history()
+    random.seed(4)
+    stocks_tested = list(set(list(random_stocks(300, start_date, end_date)) + list(csi300_stocks())))
+    reselect_factors(start_date, stocks = stocks_tested)
