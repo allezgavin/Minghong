@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import mysql.connector
 import matplotlib.pyplot as plt
 import seaborn as sns
 import random
@@ -9,6 +8,7 @@ import statistics
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, message="pandas only supports SQLAlchemy connectable")
 
+import mysql.connector
 mydb = mysql.connector.connect(
     host="172.31.50.91",
     user="guest",
@@ -56,10 +56,15 @@ def query_SQL_market(min_date, max_date, indicators, stocks = []):
         query = f"SELECT td, codenum, {ind_str} FROM market WHERE td BETWEEN {min_date} AND {max_date} ORDER BY td ASC;"
     
     df = pd.read_sql(query, mydb)
-
-    #Many abnormal values in the 'chg' column!
-    if 'chg' in df.columns:
-        df = df.loc[(df['chg'] <= 10) & (df['chg'] >= -10)].reset_index(drop = True)
+    
+    # 复权
+    if 'close' in df.columns:
+        df['close_not_recovered'] = df['close']
+        close_recovered = pd.Series()
+        for stock, sub_df in df.groupby('codenum'):
+            sub_df['close'] = sub_df['close'] / (1 + sub_df['chg'] / 100).cumprod()
+            close_recovered = pd.concat([close_recovered, sub_df['close']])
+        df['close'] = close_recovered.reindex(df)
 
     return df
 
