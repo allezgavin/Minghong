@@ -1,7 +1,8 @@
 from factor_test import *
 from datetime import timedelta
+from scipy.stats import ttest_1samp
 from cvxopt import matrix, solvers
-from backtest import backtest, query_SQL_csi300_weight
+from backtest import query_SQL_csi300_weight
 solvers.options['show_progress'] = False
 
 mydb = mysql.connector.connect(
@@ -11,8 +12,7 @@ mydb = mysql.connector.connect(
         database="astocks"
         )
 
-factors = pd.read_csv('factors.csv')
-selected_cols = pd.read_csv('factors_selected.csv').filter(like = 'factor_').columns
+factors_selected = pd.read_csv('factors_selected.csv').fillna(0)
 factor_return = pd.read_csv('factor_return.csv', index_col = 'td')
 residual_df = pd.read_csv('residual.csv', index_col = 'td')
 bench_weight = query_SQL_csi300_weight()
@@ -20,21 +20,37 @@ industry_info = query_SQL_company().set_index('codenum')
 current_holding = pd.Series()
 
 def set_variables(td = (datetime.datetime.now() + timedelta(days=1)).strftime('%Y%m%d')):
-    global X, stock_num, expected_f, F, V, p_B, S
-    current_exposure = factors.loc[factors['td'] == td]
-
-    if len(current_exposure) == 0:
-        raise Exception('missing data for the specified date!')
+    global X, Xa, Xr, stock_num, expected_f, F, V, p_B, S
     
-    X = current_exposure.set_index('codenum')[selected_cols]
+    X = factors_selected[factors_selected['td'] == td].set_index('codenum')
     stock_num = X.shape[0]
+
+    if stock_num == 0:
+        raise Exception('missing data for the specified date!')
 
     residual_var = residual_df[residual_df.index <= td].groupby('codenum').var()
     residual_var = residual_var.reindex(X.index).fillna(0.001)
     Delta = np.diag(residual_var['residual'].values)
 
     # Filter the rows prior to td (for backtesting)
-    history_factor_return = factor_return.loc[factor_return.index <= td]
+    history_factor_return = factor_return.loc[factor_return.index <= td].iloc[-130:] # Past 6 months
+
+    # Distinguish alpha and risk factors
+    alpha_factors = []
+    risk_factors = []
+
+    for factor in X.columns:
+        t_statistic, p_value = ttest_1samp(X[factor], 0)
+
+        # Assuming a significance level of 0.05
+        if p_value < 0.05:
+            alpha_factors.append(factor)
+        else:
+            risk_factors.append(factor)
+    
+    Xa = X[alpha_factors]
+    Xr = X[risk_factors]
+    
     expected_f = history_factor_return.iloc[:, 1:].mean() #exlude the intercept
 
     F = history_factor_return.iloc[:, 1:].cov()
@@ -46,33 +62,45 @@ def set_variables(td = (datetime.datetime.now() + timedelta(days=1)).strftime('%
     p_B = concurrent_bench_weight.set_index('code')['weight'].reindex(X.index).fillna(0)
 
     industry_df = industry_info.reindex(X.index).fillna('unknown')
-    S = pd.get_dummies(industry_df)
+    S = pd.get_dummies(industry_df['industry'], drop_first = True)
 
-def optimize():
-    x_k = 0.05 # Maximum factor exposure
+def optimize(current_holding = np.zeros(len(p_B), 1)):
+    x_k = 0.05 # Maximum alpha factor exposure
     k = 1 # Risk aversion coefficient
-    # Have not considered transaction costs
-
+    
     # Objective function
     P = matrix(np.array(2 * k * V))
     q = matrix(np.array(-X @ expected_f))
 
-    # Maxium factor exposure constraint and minimum weight constraint
-    G = np.vstack((X.T, -X.T)) # maximum factor exposure constraint
-    h = np.ones((2 * X.shape[1], 1)) * x_k
+    # Inequality constraint
+    # Maximum alpha factor exposure constraint
+    G1 = np.vstack((Xa.T, -Xa.T))
+    h1 = np.ones((2 * Xa.shape[1], 1)) * x_k
 
-    G = np.vstack((G, np.eye(X.shape[0]) * -1)) # minimum weight constraint
-    h = np.vstack((h, p_B.values.reshape(-1, 1)))
-    G = matrix(G)
-    h = matrix(h)
+    # Minimum weight constraint
+    G2 = np.eye(X.shape[0]) * -1
+    h2 = p_B.values.reshape(-1, 1)
 
-    # Industry neutral constraint and weight sum constraint
-    last_row = np.ones((1, S.shape[0]))
-    # A = matrix(np.vstack((S.T, last_row)))
-    # b = matrix(np.zeros((S.shape[1] + 1, 1)))
+    G = matrix(np.vstack(G1, G2))
+    h = matrix(np.vstack(h1, h2))
 
-    A = matrix(last_row)
-    b = matrix(np.zeros((1,1)))
+    # Equality constraint
+    # Industry neutral constraint
+    A1 = S.T
+    b1 = np.zeros((S.shape[1], 1))
+
+    # Zero risk factor exposure constraint
+    A2 = Xr.T
+    b2 = np.zeros((Xr.shape[1]), 1)
+
+    # Weight sum constraint
+    A3 = np.ones((1, S.shape[0]))
+    b3 = np.zeros((1, 1))
+
+    A = matrix(np.vstack(A1, A2, A3))
+    b = matrix(np.vstack(b1, b2, b3))
+
+
     sol = solvers.qp(P, q, G, h, A, b)
     optimal_weight = (p_B + list(sol['x']))
     return optimal_weight

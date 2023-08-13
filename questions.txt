@@ -1,10 +1,9 @@
 which index? 现在使用沪深300
-对IPO和退市股票如何处理？
-股票因空值被剔除，影响结果，尤其是padded benchmark的计算, 可能是以前沪深300中包括的股票的因子并没有计算在factor.csv中
-行业分类太细导致优化模型中的行业约束难以满足
-因子去共线性的过程使因子经济意义不明，无法手动约束因子收益率符号
-需要每天换仓吗？
 
-features to implement today:
-控制特定因子上暴露，不暴露市值因子
-控制行业中性
+归因分析
+确定因子参数
+
+features to implement and bugs to fix today:
+t test确定因子有效周期
+因子集中 区分alpha risk因子和因子有效周期
+更新表格
