@@ -62,7 +62,7 @@ def query_SQL_market(min_date, max_date, indicators, stocks = []):
         df['close_not_recovered'] = df['close']
         close_recovered = pd.Series()
         for stock, sub_df in df.groupby('codenum'):
-            sub_df['close'] = sub_df['close'] / (1 + sub_df['chg'] / 100).cumprod()
+            sub_df['close'] = sub_df['close'].iloc[-1] / (np.prod(1 + sub_df['chg'] / 100) / (1 + sub_df['chg'] / 100).cumprod())
             close_recovered = pd.concat([close_recovered, sub_df['close']])
         df['close'] = close_recovered.reindex(df)
 
@@ -110,12 +110,14 @@ def backtest(portfolio_or_pathfile, overnight = True, annual_interest_rate = 0.0
 
     df = df[['td', 'codenum', 'rise', 'weight']]
     df['gain'] = df['rise'] * df['weight']
-    gain_by_day = df.groupby('td').sum()['gain']
-    gain_by_day = list(gain_by_day)
+    gain_by_day = df.groupby('td').sum()['gain'].reset_index(drop=True)
     
-    cumulative = [1 + gain_by_day[0]]
-    for i in range(1, len(gain_by_day)):
-        cumulative.append((1 + gain_by_day[i]) * cumulative[i - 1])
+    cumulative = (1 + gain_by_day).cumprod() / gain_by_day[0]
+
+    # gain_by_day = list(gain_by_day)
+    # cumulative = [1 + gain_by_day[0]]
+    # for i in range(1, len(gain_by_day)):
+    #     cumulative.append((1 + gain_by_day[i]) * cumulative[i - 1])
     
     day_total = pd.DataFrame()
     day_total['td'] = df['td'].unique()
