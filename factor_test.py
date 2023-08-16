@@ -18,77 +18,77 @@ def sign(x):
     return np.sign(x)
 
 def delta(x, d):
-    output = pd.Series()
+    output = pd.Series(dtype='float64')
     for indices in codenum_group.values():
         sub_x = x.loc[indices]
         output = pd.concat([output, sub_x - sub_x.shift(d)])
     return output.reindex(x.index)
 
 def ts_sum(x, d):
-    output = pd.Series()
+    output = pd.Series(dtype='float64')
     for indices in codenum_group.values():
         sub_x = x.loc[indices]
         output = pd.concat([output, sub_x.rolling(window = d, min_periods = d).sum()])
     return output.reindex(x.index)
 
 def ts_rank(x, d):
-    output = pd.Series()
+    output = pd.Series(dtype='float64')
     for indices in codenum_group.values():
         sub_x = x.loc[indices]
         output = pd.concat([output, sub_x.rolling(window = d, min_periods = d).apply(lambda x: (x.argsort().argsort().iloc[-1] + 1), raw=False)])
     return output.reindex(x.index)
 
 def ts_min(x, d):
-    output = pd.Series()
+    output = pd.Series(dtype='float64')
     for indices in codenum_group.values():
         sub_x = x.loc[indices]
         output = pd.concat([output, sub_x.rolling(window = d, min_periods = d).min()])
     return output.reindex(x.index)
 
 def ts_max(x, d):
-    output = pd.Series()
+    output = pd.Series(dtype='float64')
     for indices in codenum_group.values():
         sub_x = x.loc[indices]
         output = pd.concat([output, sub_x.rolling(window = d, min_periods = d).max()])
     return output.reindex(x.index)
 
 def ts_std(x, d):
-    output = pd.Series()
+    output = pd.Series(dtype='float64')
     for indices in codenum_group.values():
         sub_x = x.loc[indices]
         output = pd.concat([output, sub_x.rolling(window = d, min_periods = d).std()])
     return output.reindex(x.index)
 
 def ts_argmax(x, d):
-    output = pd.Series()
+    output = pd.Series(dtype='float64')
     for indices in codenum_group.values():
         sub_x = x.loc[indices]
         output = pd.concat([output, sub_x.rolling(window = d, min_periods = d).apply(lambda x: np.argmax(x) + 1, raw=False)])
     return output.reindex(x.index)
 
 def ts_argmin(x, d):
-    output = pd.Series()
+    output = pd.Series(dtype='float64')
     for indices in codenum_group.values():
         sub_x = x.loc[indices]
         output = pd.concat([output, sub_x.rolling(window = d, min_periods = d).apply(lambda x: np.argmin(x) + 1, raw=False)])
     return output.reindex(x.index)
 
 def rank(x):
-    output = pd.Series()
+    output = pd.Series(dtype='float64')
     for indices in td_group.values():
         sub_x = x.loc[indices]
         output = pd.concat([output, sub_x.rank()])
     return output.reindex(x.index)
 
 def delay(x, d):
-    output = pd.Series()
+    output = pd.Series(dtype='float64')
     for indices in codenum_group.values():
         sub_x = x.loc[indices]
         output = pd.concat([output, sub_x.shift(d)])
     return output.reindex(x.index)
 
 def correlation(x, y, d):
-    output = pd.Series()
+    output = pd.Series(dtype='float64')
     for indices in codenum_group.values():
         sub_x = x.loc[indices]
         sub_y = y.loc[indices]
@@ -102,7 +102,7 @@ def correlation(x, y, d):
     return output.reindex(x.index)
 
 def covariance(x, y, d):
-    output = pd.Series()
+    output = pd.Series(dtype='float64')
     for indices in codenum_group.values():
         sub_x = x.loc[indices]
         sub_y = y.loc[indices]
@@ -110,7 +110,7 @@ def covariance(x, y, d):
     return output.reindex(x.index)
 
 def scale(x, a=1):
-    output = pd.Series()
+    output = pd.Series(dtype='float64')
     for indices in td_group.values():
         sub_x = x.loc[indices]
         output = pd.concat([output, sub_x * (a / np.sum(np.abs(x)))])
@@ -121,7 +121,7 @@ def signedpower(x, a):
 
 def decay_linear(x, d):
     weights = np.arange(d, 0, -1)
-    output = pd.Series()
+    output = pd.Series(dtype='float64')
     for indices in codenum_group.values():
         sub_x = x.loc[indices]
         output = pd.concat([output, np.convolve(sub_x, weights / weights.sum(), mode='valid')])
@@ -137,7 +137,6 @@ def get_size_factor():
 
 def get_value_factors():
     value_factors = {}
-    value_factors['PE'] = {'indicators': ['close', 'EPS'], 'function': lambda df: df['close'] / df['EPS']}
     value_factors['netprofitrate'] = {'indicators': ['netprofitrate']}
     value_factors['EP'] = {'indicators': ['net_profit', 'market_cap'], 'function': lambda df: df['net_profit'] / df['market_cap']}
     value_factors['EPCut'] = {'indicators': ['deducted_profit', 'market_cap'], 'function': lambda df: df['deducted_profit'] / df['market_cap']}
@@ -160,7 +159,7 @@ def get_financial_quality_factors():
     financial_quality_factors['ROE'] = {'indicators': ['net_profit', 'total_shareholders_equity'], 'function': lambda df: df['net_profit'] / df['total_shareholders_equity']}
     financial_quality_factors['ROA'] = {'indicators': ['net_profit', 'total_assets'], 'function': lambda df: df['net_profit'] / df['total_assets']}
     financial_quality_factors['grossprofitmargin'] = {'indicators': ['grossmargin']}
-    financial_quality_factors['profitmargin'] = {'indicators': ['operating_profit', 'operating_revenue'], 'function': lambda df: df['operating_profit'] / df['operating_revenue']}
+    # financial_quality_factors['profitmargin'] = {'indicators': ['operating_profit', 'operating_revenue'], 'function': lambda df: df['operating_profit'] / df['operating_revenue']}
     financial_quality_factors['assetturnover'] = {'indicators': ['operating_revenue', 'total_assets'], 'function': lambda df: df['operating_revenue'] / df['total_assets']}
     financial_quality_factors['operationcashflowratio'] = {'indicators': ['net_operating_cashflow', 'net_profit'], 'function': lambda df: df['net_operating_cashflow'] / df['net_profit']}
     return financial_quality_factors
@@ -177,14 +176,14 @@ def get_leverage_factors():
     return leverage_factors
 
 def HAlpha(df):
-    months = 6
-    # Alpha of every stock in the past 6 months.
+    months = 12
+    # Alpha of every stock in the past 12 months.
     start_date = df['td'].min()
     df['td'] = df['td'].astype('str')
     bench_df = query_SQL_csi300(start_date)[['td', 'gain']]
     bench_df.columns = ['td', 'gain_benchmark']
     df = pd.merge(df, bench_df, how = 'left', on = 'td')
-    output = pd.Series()
+    output = pd.Series(dtype='float64')
     for stock, sub_df in df.groupby('codenum'):
         sub_df['var_bench'] = sub_df['gain_benchmark'].rolling(window = 21 * months, min_periods = 21 * months).var()
         sub_df['cov'] = sub_df['gain'].rolling(window = 21 * months, min_periods = 21 * months).cov(sub_df['gain_benchmark'])
@@ -218,7 +217,7 @@ def beta_consistency(df):
     bench_df = query_SQL_csi300(start_date)[['td', 'gain']]
     bench_df.columns = ['td', 'gain_benchmark']
     df = pd.merge(df, bench_df, how = 'left', on = 'td')
-    output = pd.Series()
+    output = pd.Series(dtype='float64')
     for stock, sub_df in df.groupby('codenum'):
         sub_df[['weekly_gain', 'weekly_benchmark']] = sub_df[['gain', 'gain_benchmark']].rolling(window = 5, min_periods = 5).sum()
         sub_df['var_bench'] = sub_df['weekly_benchmark'].rolling(window = 21 * months, min_periods = 21 * months).var()
@@ -238,13 +237,14 @@ def get_volatility_factors():
     volatility_factors['high_low_3m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 3 * 21) / ts_max(df['low'], 3 * 21)}
     volatility_factors['high_low_6m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 6 * 21) / ts_max(df['low'], 6 * 21)}
     volatility_factors['high_low_12m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 12 * 21) / ts_max(df['low'], 12 * 21)}
-    volatility_factors['std_1m'] = {'indicators': ['high'], 'function': lambda df: ts_std(df['high'], 6 * 21)}
-    volatility_factors['std_2m'] = {'indicators': ['high'], 'function': lambda df: ts_std(df['high'], 6 * 21)}
-    volatility_factors['std_3m'] = {'indicators': ['high'], 'function': lambda df: ts_std(df['high'], 6 * 21)}
+    volatility_factors['std_1m'] = {'indicators': ['high'], 'function': lambda df: ts_std(df['high'], 1 * 21)}
+    volatility_factors['std_2m'] = {'indicators': ['high'], 'function': lambda df: ts_std(df['high'], 2 * 21)}
+    volatility_factors['std_3m'] = {'indicators': ['high'], 'function': lambda df: ts_std(df['high'], 3 * 21)}
     volatility_factors['std_6m'] = {'indicators': ['high'], 'function': lambda df: ts_std(df['high'], 6 * 21)}
-    volatility_factors['std_12m'] = {'indicators': ['high'], 'function': lambda df: ts_std(df['high'], 6 * 21)}
+    volatility_factors['std_12m'] = {'indicators': ['high'], 'function': lambda df: ts_std(df['high'], 12 * 21)}
     volatility_factors['ln_price'] = {'indicators': ['close'], 'function': lambda df: np.log(df['close'])}
-    volatility_factors['beta_consistency'] = {'indicators': ['td', 'codenum', 'gain'], 'function': beta_consistency}
+    # Slow due to loops
+    # volatility_factors['beta_consistency'] = {'indicators': ['td', 'codenum', 'gain'], 'function': beta_consistency}
     return volatility_factors
 
 def get_turnover_factors():
@@ -262,8 +262,8 @@ def get_modified_momentum_factors():
     return modified_momentum_factors
 
 def codenum_adjacency(df):
-    output = pd.Series()
-    for sub_df in df.sort_values('codenum').groupby('td'):
+    output = pd.Series(dtype='float64')
+    for td, sub_df in df.sort_values('codenum').groupby('td'):
         sub_df['adjacent_gain'] = sub_df['gain'].rolling(window = 5).sum()
         output = pd.concat([output, sub_df['adjacent_gain']])
     return output.reindex(df.index)
@@ -290,8 +290,8 @@ def get_volume_price_factors():
     volume_price_factors['WQ006'] = {'indicators': ['codenum', 'open', 'vol'], 'function': lambda df: -1 * correlation(df['open'], df['vol'], 10)}
     # volume_price_factors['WQ012'] = {'indicators': ['vol', 'close'], 'function': lambda df: sign(delta(df['vol'], 1)) * (-1 * delta(df['close'], 1))}
     volume_price_factors['vp_chg_div'] = {'indicators': ['vol', 'close'], 'function': lambda df: correlation(delta(df['vol'], 1), delta(df['close'], 1), 21)}
-    volume_price_factors['ranked_vp_chg_div'] = {'indicators': ['vol', 'close'], 'function': ranked_chg_div}
-    volume_price_factors['ts_ranked_vp_chg_div'] = {'indicators': ['vol', 'close'], 'function': ts_ranked_chg_div}
+    # volume_price_factors['ranked_vp_chg_div'] = {'indicators': ['vol', 'close'], 'function': ranked_chg_div}
+    # volume_price_factors['ts_ranked_vp_chg_div'] = {'indicators': ['vol', 'close'], 'function': ts_ranked_chg_div}
     return volume_price_factors
 
 def WQ001(df):
@@ -350,7 +350,7 @@ def get_WQ_factors():
 
 def get_factor_group_list():
     return [get_value_factors(), get_growth_factors(), get_financial_quality_factors(), get_leverage_factors(), get_momentum_factors(), 
-            get_volatility_factors(), get_turnover_factors(), get_modified_momentum_factors(), get_codenum_factor(), get_volume_price_factors, get_WQ_factors]
+            get_volatility_factors(), get_turnover_factors(), get_modified_momentum_factors(), get_codenum_factor(), get_volume_price_factors(), get_WQ_factors(), get_size_factor()]
 
 def get_all_factors():
     factor_dict = {}
@@ -365,7 +365,6 @@ def last_day_of_last_quarter(current_date):
     return datetime.date(current_date.year, quarters_finished * 3 + 1, 1) + datetime.timedelta(days=-(1))
 
 def query_SQL_finance(min_date, max_date, factors = [], stocks = []):
-
     factor_list = 'fd, codenum'
     if len(factors) != 0:
         factor_list = factor_list + ', ' + ', '.join(factors)
@@ -377,7 +376,20 @@ def query_SQL_finance(min_date, max_date, factors = [], stocks = []):
         query = f"SELECT {factor_list} FROM finance WHERE fd BETWEEN {min_date} AND {max_date} ORDER BY fd ASC;"
     
     finance_df = pd.read_sql(query, mydb)
+    year = finance_df['fd'] // 10000
+    month_day = finance_df['fd'] % 10000
+    month_day = month_day.replace({
+        331: 430,
+        630: 830,
+        930: 1031,
+        1231: 10430
+    })
+    finance_df['disclosure'] = (year * 10000 + month_day).astype('str')
     finance_df['fd'] = finance_df['fd'].astype('str')
+
+    # Delete 4th quarter data
+    finance_df = finance_df[~finance_df['fd'].str.contains('1231')]
+
     return finance_df
 
 def query_SQL_finance_deriv(min_date, max_date, factors = [], stocks = []):
@@ -393,7 +405,20 @@ def query_SQL_finance_deriv(min_date, max_date, factors = [], stocks = []):
         query = f"SELECT {factor_list} FROM finance_deriv WHERE fd BETWEEN {min_date} AND {max_date} ORDER BY fd ASC;"
     
     finance_deriv_df = pd.read_sql(query, mydb)
+    year = finance_deriv_df['fd'] // 10000
+    month_day = finance_deriv_df['fd'] % 10000
+    month_day = month_day.replace({
+        331: 430,
+        630: 830,
+        930: 1031,
+        1231: 10430
+    })
+    finance_deriv_df['disclosure'] = (year * 10000 + month_day).astype('str')
     finance_deriv_df['fd'] = finance_deriv_df['fd'].astype('str')
+
+    # Delete 4th quarter data
+    finance_deriv_df = finance_deriv_df[~finance_deriv_df['fd'].str.contains('1231')]
+
     return finance_deriv_df
 
 def query_SQL_company(stocks = []):
@@ -430,10 +455,7 @@ def replace_duplicates_with_suffixes(lst):
 
     return result
 
-def calc_factors(start_date, end_date = datetime.date.today().strftime('%Y%m%d'), stocks = [], factors = {}, divide_groups = 5, group = False):
-
-    if group and len(factors) > 1:
-        raise Exception("Cannot handle grouping for more than one factor")
+def calc_factors(start_date, end_date = datetime.date.today().strftime('%Y%m%d'), stocks = [], factors = {}):
 
     #Get columns of finance table
     query = f"SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'astocks' AND TABLE_NAME = 'finance';"
@@ -462,25 +484,16 @@ def calc_factors(start_date, end_date = datetime.date.today().strftime('%Y%m%d')
                 else:
                     raise Exception(f'"{indicator}" does not exist in finance, finance_deriv or market tables!')
 
-    finance_df = query_SQL_finance(start_date, end_date, factors = fin_ind, stocks = stocks)
-    finance_deriv_df = query_SQL_finance_deriv(start_date, end_date, factors = fin_deriv_ind, stocks = stocks)
+    finance_df = query_SQL_finance(start_date - 10000, end_date, factors = fin_ind, stocks = stocks)
+    finance_deriv_df = query_SQL_finance_deriv(start_date - 10000, end_date, factors = fin_deriv_ind, stocks = stocks)
     market_df = query_SQL_market(start_date, end_date, indicators = market_ind, stocks = stocks)
     company_df = query_SQL_company(stocks = stocks)
 
-    finance_merged = pd.merge(finance_df, finance_deriv_df, how = 'inner', on = ['fd', 'codenum'])
-    finance_merged = pd.merge(finance_merged, company_df, how = 'inner', on = 'codenum')
-    #stocks absent in any table are dropped
+    finance_merged = pd.merge(finance_df, finance_deriv_df, how = 'inner', on = ['fd', 'disclosure', 'codenum'])
 
-    # Convert 'td' column to datetime
-    dates = pd.to_datetime(market_df['td'], format = '%Y%m%d')
-
-    # Calculate the last day of last quarter using the vectorized function
-    last_day_last_quarter = dates.apply(lambda date: last_day_of_last_quarter(date).strftime('%Y%m%d'))
-
-    # Assign the results to the 'fd' column directly
-    market_df['fd'] = last_day_last_quarter
-
-    merged_df = pd.merge(market_df, finance_merged, how = 'inner', on = ['fd', 'codenum'])
+    finance_merged['disclosure'] = finance_merged['disclosure'].astype(int)
+    merged_df = pd.merge_asof(market_df, finance_merged, left_on = 'td', right_on = 'disclosure', by = 'codenum', direction = 'backward')
+    merged_df = pd.merge(merged_df, company_df, how = 'inner', on = 'codenum')
     merged_df['gain'] = (merged_df['chg']) / 100
 
     # Get indices of td and codenum groups
@@ -515,21 +528,8 @@ def calc_factors(start_date, end_date = datetime.date.today().strftime('%Y%m%d')
         if len(merged_df) < 36:
             raise Exception(f'Backtest time span is too short for factor {factor}!')
 
-        # # This will be controlled in the quadratic programming and the definition of some factors
-        # # Industry neutralization
-        # merged_df[f'factor_{factor}'] = merged_df[[factor, 'industry']].groupby('industry').transform(normalize)
-
-        # # This will be controlled by the market-cap factor and the quadratic programming
-        # # Market-cap neutralization
-        # linregress_market_cap = LinearRegression()
-        # linregress_market_cap.fit(merged_df.dropna(subset = ['market_cap', 'factor_' + factor])['market_cap'].values.reshape(-1, 1), merged_df.dropna(subset = ['market_cap', 'factor_' + factor])['factor_' + factor])
-        # merged_df[f'factor_{factor}'] = merged_df.dropna(subset = ['market_cap', 'factor_' + factor])[f'factor_{factor}'] - linregress_market_cap.predict(merged_df.dropna(subset = ['market_cap', 'factor_' + factor])['market_cap'].values.reshape(-1, 1))
-        # factor_cols.append(f'factor_{factor}')
-
-        # # With neither neutralizations, only normalization:
-        print(merged_df[factor])
+        # With neither neutralizations, only normalization:
         merged_df[f'factor_{factor}'] = normalize(merged_df[factor])
-        print(merged_df[f'factor_{factor}'])
         factor_cols.append(f'factor_{factor}')
 
         merged_df = merged_df.copy()
@@ -539,85 +539,94 @@ def calc_factors(start_date, end_date = datetime.date.today().strftime('%Y%m%d')
     print('Null value counts:')
     print(merged_df.isnull().sum())
 
-    # # This statement drops NA from missing factor values due to lagged factors or missing data
-    # # Should not drop because some factors have a lot of missing values
-    # merged_df = merged_df.dropna().reset_index(drop = True)
-
     merged_df = merged_df.sort_values('td') # Ensures it is sorted by td
     merged_df['gain_next'] = merged_df.groupby('codenum')['gain'].shift(-1)
-    print(merged_df)
 
-    if not group:
-        merged_df.to_csv('factors.csv', index = False)
-        return merged_df
-    
-    else: #single factor for testing
-        concat_sub_df = pd.DataFrame()
-        for td in merged_df['td'].unique():
-            sub_df = merged_df[['td', 'codenum', f'factor_{factor}']][merged_df['td'] == td].sort_values(f'factor_{factor}', ascending = True)
-            group_size = len(sub_df) // divide_groups
-            sub_df['group'] = 1 #Assign all stocks to group 1
-            for i in range(1, divide_groups):
-                sub_df['group'].iloc[:(divide_groups - i) * group_size] = i + 1
-            concat_sub_df = pd.concat([concat_sub_df, sub_df], ignore_index = True)
-        grouped_merged_df = merged_df.merge(concat_sub_df.drop(f'factor_{factor}', axis = 1), on = ['td', 'codenum'])
+    merged_df.to_csv('factors.csv', index = False)
+    return merged_df
 
-        return grouped_merged_df
+def IC_test(factor_key = '', period = 1):
+    factor_pool = pd.read_csv('factors.csv')
+    if factor_key != '':
+        factor_pool = factor_pool[['td', 'codenum', 'gain_next', 'factor_' + factor_key]]
+    factor_cols = factor_pool.filter(like = 'factor_').columns.to_list()
+    sub_dfs = []
+    for stock, sub_df in factor_pool.groupby('codenum'):
+        sub_df['gain_next_mean'] = sub_df['gain_next'].rolling(window = period).mean().shift(-period+1)
+        sub_dfs.append(sub_df)
+    factor_pool = pd.concat(sub_dfs)
+    IC_series = []
+    td_index = []
+    for td, sub_df in factor_pool.groupby('td'):
+        IC = sub_df[factor_cols].corrwith(sub_df['gain_next_mean'])
+        IC_series.append(IC)
+        td_index.append(td)
+    IC_series = pd.DataFrame(data = IC_series, index = td_index)
+    IC_series.index.name = 'td'
+    IC_series = IC_series.reset_index()
+    recent_IC_series = IC_series
+    #recent_IC_series = IC_series.iloc[-260:]
 
-def t_test(group_merged_df):
-    test_df = group_merged_df[['group', 'gain_next']]
-    test_df['date'] = pd.to_datetime(group_merged_df['td'], format = '%Y%m%d')
+    IR = recent_IC_series[factor_cols].mean() / recent_IC_series[factor_cols].std()
 
-    test_df['year_month'] = test_df['date'].dt.strftime('%Y%m')
+    if len(factor_cols) == 1:
+        IC_factor = factor_cols[0]
+        IC_series['year_month'] = pd.to_datetime(IC_series['td'], format = '%Y%m%d').dt.strftime('%Y%m')
+        monthly_mean = IC_series.groupby('year_month')[IC_factor].mean().reset_index()
+        plt.figure(figsize = (10, 5))
+        plt.xticks(rotation=45)
+        sns.barplot(x = 'year_month', y = IC_factor, data = monthly_mean)
+        plt.savefig('IC_test.png')
+        plt.show()
+    else:
+        IC_series.to_csv(f'IC_period_{period}.csv', index = False)
+        return IR
 
-    divide_groups = test_df['group'].max()
-    all_dates = test_df['year_month'].unique()
-    t_list = []
+def IR_test(factor_key = '', periods = [1,2,3,5,10,20,40]):
+    IR_df = pd.DataFrame()
+    for period in periods:
+        print('Calculating data with period length', period)
+        IR = IC_test(factor_key=factor_key, period=period)
+        IR_df = pd.concat([IR_df, IR], axis = 1)
+    if factor_key == '':
+        IR_df.to_csv('IR.csv')
+    else:
+        print(IR_df)
 
-    for date in all_dates: #Adjusts stock holdings every day
-        sub_df = test_df.loc[test_df['year_month'] == date]
-        highest_group = sub_df.loc[sub_df['group'] == 1]
-        lowest_group = sub_df.loc[sub_df['group'] == divide_groups]
-        t_result = ttest_ind(highest_group['gain_next'], lowest_group['gain_next'])
-        t_list.append(t_result.statistic)
+def group_backtest(factor_key, period = 1, divide_groups = 5):
+    factor_name = 'factor_' + factor_key
+    factor_pool = pd.read_csv('factors.csv')[['td', 'codenum', 'gain_next'] + [factor_name]]
+    sub_dfs = []
+    for stock, sub_df in factor_pool.groupby('codenum'):
+        sub_df['gain_next_mean'] = sub_df['gain_next'].rolling(window = period).mean().shift(-period + 1)
+        sub_df = sub_df.iloc[-1::-period].iloc[::-1]
+        sub_dfs.append(sub_df)
+    factor_pool = pd.concat(sub_dfs)
+    sub_dfs = []
+    for td, sub_df in factor_pool.groupby('td'):
+        sub_df = sub_df.sort_values(factor_name)
+        group_size = len(sub_df) // divide_groups
+        sub_df['group'] = 1
+        for i in range(1, divide_groups):
+            sub_df['group'].iloc[:(divide_groups - i) * group_size] = i + 1
+        sub_dfs.append(sub_df)
+    group_merged_df = pd.concat(sub_dfs)
 
-    result = pd.DataFrame()
-    result['year_month'] = all_dates.astype('str')
-    result['t_value'] = t_list
-    result['abs>2'] = pd.Series(t_list).abs() > 2
-    
-    plt.figure(figsize = (10, 5))
-    sns.barplot(x = 'year_month', y = 't_value', hue = 'abs>2', data = result)
-    step = len(result) // 10
-    plt.xticks(range(0, len(result), step), result['year_month'][::step], rotation=45)
-    plt.tight_layout()
-    plt.savefig('t_test.png')
-    plt.show()
-
-    significant = result['abs>2'].sum() / len(result)
-    print('{:.2f}% of t values are greater than 2!'.format(significant * 100))
-
-def grouped_backtest(group_merged_df):
-    #Adjusts holdings every day
     result = pd.DataFrame()
     annual_profits = []
-
-    for i in range(1, group_merged_df['group'].max() + 1):
-        sub_df = group_merged_df.loc[group_merged_df['group'] == i]
-        avg_daily_profit = sub_df.groupby('td')['gain_next'].mean()
-        cumulative = [1 + avg_daily_profit.iloc[0]]
-
-        for j in range(1, len(avg_daily_profit)):
-            cumulative.append(cumulative[j - 1] * (1 + avg_daily_profit.iloc[j]))
+    for group, sub_df in group_merged_df.groupby('group'):
+        avg_profit = sub_df.groupby('td')['gain_next_mean'].mean()
         group_result = pd.DataFrame()
-        group_result['date'] = pd.to_datetime(avg_daily_profit.index, format = '%Y%m%d')
-        group_result['daily_profit'] = list(avg_daily_profit)
+        group_result['date'] = pd.to_datetime(avg_profit.index, format = '%Y%m%d')
+        group_result['avg_profit'] = list(avg_profit)
+        cumulative = (1 + group_result['avg_profit']).cumprod() / (1 + group_result['avg_profit'].iloc[0])
         group_result['cumulative_profit'] = cumulative
-        group_result['group'] = i
-        result = pd.concat([result, group_result], ignore_index = True)
-
-        annual_profits.append(cumulative[-1] ** (260 / len(cumulative)) - 1)
+        group_result['group'] = group
+        result = pd.concat([result, group_result])
+        annual_profits.append(cumulative.dropna().iloc[-1] ** (260 / len(cumulative) / period) - 1)
     
+    result.reset_index(drop = True, inplace= True)
+
     print(f'Annual profits of Groups starting from Group 1 (greatest factor value) are {annual_profits}')
     plt.figure(figsize = (10, 5))
     sns.lineplot(x = 'date', y = 'cumulative_profit', data = result, hue = 'group')
@@ -628,21 +637,25 @@ def calc_all_factors(start_date, stocks = []):
     calc_factors(start_date, factors = get_all_factors(), stocks = stocks)
     print('All factors calculated!')
 
-def test_factor(start_date, end_date, factor_dict, stocks = []):
-    group_merged_df = calc_factors(start_date, end_date = end_date, factors = factor_dict, stocks = stocks, group = True)
-    t_test(group_merged_df)
-    grouped_backtest(group_merged_df)
+def test_factor(start_date, end_date, factor_key, stocks = [], period = 1):
+    calc_factors(start_date, end_date = end_date, factors = {factor_key: get_all_factors()[factor_key]}, stocks = stocks)
+    IC_test(factor_key = factor_key, period = period)
+    IR_test(factor_key = factor_key)
+    group_backtest(factor_key = factor_key, period = period)
 
 if __name__ == '__main__':
 
-    start_date = 20211231
-    end_date = 20230401
+    start_date = 20200101
+    end_date = 20210101
 
     if start_date >= end_date:
         raise ValueError('Date Error!')
 
     #stocks_tested = random_stocks(500, start_date, end_date)
 
-    test_factor(start_date, end_date, get_WQ_factors(), stocks = csi300_stocks())
+    IC_test(factor_key='WQ010',period = 1)
+    #group_backtest(factor_key='WQ006',period=40)
 
-    #test_factor(start_date, end_date, {'relative_strength_1m':get_momentum_factors()['relative_strength_1m']}, stocks = csi300_stocks())
+    # query_SQL_finance(20210101, 20221231, stocks = [])
+
+    # calc_factors(start_date=start_date, end_date=end_date, stocks=stocks_tested)

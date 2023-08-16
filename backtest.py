@@ -17,7 +17,7 @@ mydb = mysql.connector.connect(
     )
 
 class BacktestResult():
-    def __init__(self, ap, bap, rp, b, wlr, rrr, a, dr, ir, te, j, md, sp, stn, tn, v, rs, sv):
+    def __init__(self, ap, bap, rp, b, wlr, rrr, a, dr, ir, te, j, md, sp, stn, tn, v, rs, sv, trn):
         self.annual_profit = ap
         self.benchmark_annual_profit = bap
         self.relative_profit = rp
@@ -36,10 +36,10 @@ class BacktestResult():
         self.volatility = v
         self.R_squared = rs
         self.semivar = sv
+        self.turnover = trn
     
     def __str__(self):
-        return f'Relative profit: {self.relative_profit}\nWin-loss ratio: {self.win_loss_ratio}\nRisk-return ratio: {self.risk_return_ratio}\nR-squared: {self.R_squared}'
-
+        return f'Relative profit: {self.relative_profit}\nAlpha: {self.alpha}\nMax drawdown: {self.maximum_drawdown}\nIR: {self.info_ratio}\nTurnover ratio: {self.turnover}'
 
 def query_SQL_market(min_date, max_date, indicators, stocks = []):
     if 'market_cap' in indicators:
@@ -60,11 +60,8 @@ def query_SQL_market(min_date, max_date, indicators, stocks = []):
     # 复权
     if 'close' in df.columns:
         df['close_not_recovered'] = df['close']
-        close_recovered = pd.Series()
         for stock, sub_df in df.groupby('codenum'):
             sub_df['close'] = sub_df['close'].iloc[-1] / (np.prod(1 + sub_df['chg'] / 100) / (1 + sub_df['chg'] / 100).cumprod())
-            close_recovered = pd.concat([close_recovered, sub_df['close']])
-        df['close'] = close_recovered.reindex(df)
 
     return df
 
@@ -82,7 +79,7 @@ def query_SQL_csi300_weight():
     bench_query = "SELECT td, code, weight / 100 AS weight FROM indexweight WHERE indexnum = '000300.SH';"
     return pd.read_sql(bench_query, mydb)
 
-def backtest(portfolio_or_pathfile, overnight = True, annual_interest_rate = 0.0165):
+def backtest(portfolio_or_pathfile, annual_interest_rate = 0.0165):
     if type(portfolio_or_pathfile) == str:
         port = pd.read_csv(portfolio_or_pathfile)
     elif type(portfolio_or_pathfile) == pd.DataFrame:
@@ -91,17 +88,13 @@ def backtest(portfolio_or_pathfile, overnight = True, annual_interest_rate = 0.0
         raise Exception('portfolio file type not supported! Please use .csv filepath or pd.DataFrame')
     port['td'] = port['td'].astype('str')
     port = port.sort_values('td', ascending = True)
+    turnover = port.groupby('codenum')['weight'].agg(lambda x: (x - x.shift(1, fill_value = 0)).abs().mean()/2).sum()
     start_date = list(port['td'])[0]
     end_date = list(port['td'])[-1]
     
     df = query_SQL_market(start_date, end_date, indicators = ['open', 'close', 'chg'], stocks = port['codenum'].unique())
     
-    if overnight:
-        #Compares the closing price with that on the previous day
-        df['rise'] = df['chg'] / 100
-    else:
-        #Compares the closing price with the opening price on the same day
-        df['rise'] = (df['close'] - df['open']) / df['open']
+    df['rise'] = df['chg'] / 100
 
     df['td'] = df['td'].astype('str')
     
@@ -112,12 +105,7 @@ def backtest(portfolio_or_pathfile, overnight = True, annual_interest_rate = 0.0
     df['gain'] = df['rise'] * df['weight']
     gain_by_day = df.groupby('td').sum()['gain'].reset_index(drop=True)
     
-    cumulative = (1 + gain_by_day).cumprod() / gain_by_day[0]
-
-    # gain_by_day = list(gain_by_day)
-    # cumulative = [1 + gain_by_day[0]]
-    # for i in range(1, len(gain_by_day)):
-    #     cumulative.append((1 + gain_by_day[i]) * cumulative[i - 1])
+    cumulative = (1 + gain_by_day).cumprod() / (1 + gain_by_day[0])
     
     day_total = pd.DataFrame()
     day_total['td'] = df['td'].unique()
@@ -158,6 +146,12 @@ def backtest(portfolio_or_pathfile, overnight = True, annual_interest_rate = 0.0
     plt.savefig('backtest_result.png')
     plt.show()
 
+    merged['cumulative_hedge'] = merged['cumulative_trader'] - merged['cumulative_benchmark'] + 1
+    plt.figure(figsize = (10,5))
+    sns.lineplot(x = 'date', y = 'cumulative_hedge', data = merged)
+    plt.savefig('backtest_hedge.png')
+    plt.show()
+
     T = len(merged)
     annual_profit = merged['cumulative_trader'].iloc[-1] ** (260 / T) - 1
     benchmark_annual_profit = merged['cumulative_benchmark'].iloc[-1] ** (260 / T) - 1
@@ -173,22 +167,23 @@ def backtest(portfolio_or_pathfile, overnight = True, annual_interest_rate = 0.0
     downside_risk = np.sqrt(260) * np.sqrt(numerator / (T - 1))
 
     diff = merged['gain_trader'] - merged['gain_benchmark']
-    info_ratio = diff.mean() * np.sqrt(260)
     track_error = np.std(diff)
+    info_ratio = diff.mean() / track_error
+    track_error = track_error * np.sqrt(260)
 
     jensen = relative_profit - beta * (benchmark_annual_profit - annual_interest_rate)
 
-    max_value = merged['cumulative_trader'][0]
-    min_value = merged['cumulative_trader'][0]
+    max_value = merged['cumulative_hedge'][0]
+    min_value = merged['cumulative_hedge'][0]
     max_drawdown = 0
     for i in range(1, T):
-        if merged['cumulative_trader'][i] < min_value:
-            min_value = merged['cumulative_trader'][i]
-        elif merged['cumulative_trader'][i] > max_value:
+        if merged['cumulative_hedge'][i] < min_value:
+            min_value = merged['cumulative_hedge'][i]
+        elif merged['cumulative_hedge'][i] > max_value:
             drawdown = (max_value - min_value) / max_value
             if drawdown > max_drawdown:
                 max_drawdown = drawdown
-            max_value = merged['cumulative_trader'][i]
+            max_value = merged['cumulative_hedge'][i]
             min_value = max_value
     drawdown = (max_value - min_value) / max_value
     if drawdown > max_drawdown:
@@ -204,7 +199,7 @@ def backtest(portfolio_or_pathfile, overnight = True, annual_interest_rate = 0.0
     semivar = np.std(merged['gain_trader'][merged['gain_trader'] < 0])
 
     return BacktestResult(annual_profit, benchmark_annual_profit, relative_profit, beta, win_loss_ratio, risk_return_ratio, alpha, downside_risk,
-                          info_ratio, track_error, jensen, max_drawdown, sharpe, sortino, treynor, volatility, R_squared, semivar)
+                          info_ratio, track_error, jensen, max_drawdown, sharpe, sortino, treynor, volatility, R_squared, semivar, turnover)
 
 def csi300_stocks():
     # Returns all CSI300 index stocks, past and current.
@@ -247,5 +242,7 @@ if __name__ == '__main__':
     if start_date < 20020101:
         raise Exception('start_date too early!')
 
-    random_portfolio(start_date, end_date = end_date)
+    # random_portfolio(start_date, end_date = end_date)
     backtest('random_portfolio.csv')
+
+    # print(query_SQL_market(20230101, 20230131, indicators = ['open', 'close', 'chg']))

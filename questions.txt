@@ -1,9 +1,0 @@
-which index? 现在使用沪深300
-
-归因分析
-确定因子参数
-
-features to implement and bugs to fix today:
-t test确定因子有效周期
-因子集中 区分alpha risk因子和因子有效周期
-更新表格
