@@ -5,13 +5,14 @@ from sklearn.model_selection import cross_val_score, KFold
 from skopt import BayesSearchCV
 from sklearn.metrics import r2_score
 from statsmodels.stats.outliers_influence import variance_inflation_factor
+from global_var import period
 
-def select_factors(period = 1):
+def select_factors():
     factor_pool = pd.read_csv('factors.csv')
     factor_cols = factor_pool.filter(like = 'factor_').columns
     factor_pool['gain_next_sum'] = factor_pool.groupby('codenum')['gain_next'].transform(lambda x: x.rolling(window = period).sum().shift(-period+1))
 
-    selected_td = factor_pool['td'].unique()[-780:] # past 3 years
+    selected_td = factor_pool['td'].unique()[-390:] # past 1.5 years
     factor_pool = factor_pool[factor_pool['td'].isin(selected_td)]
 
     factor_pool = factor_pool.dropna(subset = ['gain_next_sum']).fillna(0) #Drops the most current dates because gain_next is to be predicted
@@ -65,8 +66,15 @@ def select_factors(period = 1):
     factor_pool.to_csv('factors_selected.csv', index = False)
     print('factors_selected.csv generated!')
 
-def factor_regression_history(period = 1):
-    factors_selected = pd.read_csv('factors_selected.csv')
+def factor_regression_history(factors_selected = 'factors_selected.csv'):
+    if type(factors_selected) == str:
+        factors_selected = pd.read_csv(factors_selected)
+        to_csv = True
+    elif type(factors_selected) == pd.DataFrame:
+        to_csv = False
+    else:
+        raise ValueError('Invalid input for factors_selected!')
+    
     factors_selected['gain_next_sum'] = factors_selected.groupby('codenum')['gain_next'].transform(lambda x: x.rolling(window = period).sum().shift(-period+1))
     factors_selected = factors_selected.dropna(subset = ['gain_next_sum']).fillna(0)
     selected_cols = list(factors_selected.filter(like = 'factor_').columns)
@@ -126,35 +134,33 @@ def factor_regression_history(period = 1):
     adjusted_r2 = 1-(1-r2)*(n-1)/(n-p-1)
     print('Adjusted r-squared:', adjusted_r2)
 
-    factor_return_df.replace(0, np.nan).to_csv('factor_return.csv', index = False)
-    print('factor_return.csv created!')
+    if to_csv:
+        factor_return_df.replace(0, np.nan).to_csv('factor_return.csv', index = False)
+        print('factor_return.csv created!')
 
-    residual_df.to_csv('residual.csv', index = False)
-    print('residual.csv created!')
+        residual_df.to_csv('residual.csv', index = False)
+        print('residual.csv created!')
 
-def update_factor(start_date, period, stocks = []):
+    else:
+        return factor_return_df
+
+def update_factor():
     selected_cols = pd.read_csv('factors_selected.csv').filter(like = 'factor_').columns
     selected_factors = [col.replace('factor_', '') for col in selected_cols]
-    calc_factors(start_date, factors = {factor: get_all_factors()[factor] for factor in selected_factors}, stocks = stocks)[['td', 'codenum', 'gain_next'] + selected_cols].to_csv('selected_factors.csv')
-    factor_regression_history(period = period)
+    calc_factors(factors = {factor: get_all_factors()[factor] for factor in selected_factors}, stocks = stocks)[['td', 'codenum', 'gain_next'] + selected_cols].to_csv('selected_factors.csv')
+    factor_regression_history()
     print('Selected factors updated!')
 
-def reselect_factors(start_date, period = 1, stocks = []):
-    calc_all_factors(start_date, stocks = stocks)
-    select_factors(period = period)
+def reselect_factors():
+    calc_factors()
+    select_factors()
     factor_regression_history()
 
 if __name__ == '__main__':
-
-    start_date = 20210101
-    end_date = 20230730
-
-    if start_date >= end_date:
-        raise ValueError('Date Error!')
     
     # random.seed(4)
-    # stocks_tested = list(set(list(random_stocks(300, start_date, end_date)) + list(csi300_stocks())))
+    # stocks_tested = list(set(list(random_stocks(300)) + list(csi300_stocks())))
     reselect_factors(20180101, stocks = csi300_stocks())
 
-    # select_factors(period = 20)
-    # factor_regression_history(period = 20)
+    # select_factors()
+    # factor_regression_history()

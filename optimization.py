@@ -4,6 +4,7 @@ from datetime import timedelta
 from scipy.stats import ttest_1samp
 from cvxopt import matrix, solvers
 from backtest import query_SQL_csi300_weight
+from global_var import *
 solvers.options['show_progress'] = False
 
 factors_selected = pd.read_csv('factors_selected.csv').fillna(0)
@@ -11,12 +12,18 @@ factor_return = pd.read_csv('factor_return.csv', index_col = 'td')
 residual_df = pd.read_csv('residual.csv', index_col = 'td')
 bench_weight = query_SQL_csi300_weight()
 industry_info = query_SQL_company().set_index('codenum')
+all_style_factors = get_style_factors().keys()
+all_alpha_factors = get_alpha_factors().keys()
 factor_cols = factors_selected.filter(like = 'factor_').columns.to_list()
+style_factor_cols = [style_factor for style_factor in factor_cols if style_factor in all_style_factors]
+alpha_factor_cols = [alpha_factor for alpha_factor in factor_cols if alpha_factor in all_alpha_factors]
 
-def set_variables(period, td = (datetime.datetime.now() + timedelta(days=1)).strftime('%Y%m%d')):
-    global X, Xa, Xr, stock_num, expected_f, F, V, p_B, S
+
+
+def set_variables(td = (datetime.datetime.now() + timedelta(days=1)).strftime('%Y%m%d')):
+    global X, Xa, Xb, stock_num, expected_Xf, F, V, p_B, S
     
-    X = factors_selected[factors_selected['td'] == td].set_index('codenum').filter(like = 'factor_')
+    X = factors_selected[factors_selected['td'] == td].set_index('codenum')[factor_cols]
     stock_num = X.shape[0]
 
     if stock_num == 0:
@@ -25,32 +32,23 @@ def set_variables(period, td = (datetime.datetime.now() + timedelta(days=1)).str
         raise ValueError('missing factor for the specific date!')
     X = X.fillna(0)
 
-    residual_var = residual_df[residual_df.index <= td].groupby('codenum').var()
-    residual_var = residual_var.reindex(X.index).fillna(0.001)
+    Xa = X[alpha_factor_cols]
+    Xb = X[style_factor_cols]
+
+    recent_residual_df = residual_df[residual_df.index <= td]
+    residual_var = recent_residual_df.groupby('codenum').var()
+    residual_var = residual_var.reindex(X.index).fillna(residual_var.mean())
     Delta = np.diag(residual_var['residual'].values)
 
     # Filter the rows prior to td (for backtesting)
-    history_factor_return = factor_return.loc[factor_return.index <= td].iloc[-36 * period::period].fillna(0) # Past 36
-
-    # Distinguish alpha and risk factors
-    alpha_factors = []
-    risk_factors = []
-
-    for factor in factor_return.iloc[:, 1:].columns:
-        t_statistic, p_value = ttest_1samp(factor_return[factor], 0)
-
-        # Assuming a significance level of 0.05
-        if p_value < 0.05:
-            alpha_factors.append(factor)
-        else:
-            risk_factors.append(factor)
+    recent_factor_return = factor_return.loc[factor_return.index <= td].iloc[-72 * period::period].fillna(0) # Past 72
     
-    Xa = X[alpha_factors]
-    Xr = X[risk_factors]
-    
-    expected_f = history_factor_return.iloc[:, 1:].mean() # Exlude the intercept
+    expected_fa = recent_factor_return[alpha_factor_cols].mean()
+    expected_fb = recent_factor_return[style_factor_cols].mean()
 
-    F = history_factor_return.iloc[:, 1:].cov()
+    expected_Xf = Xa @ expected_fa + Xb @ expected_fb
+
+    F = recent_factor_return.iloc[:, 1:].cov()
     V = X @ F @ X.T + Delta
     
     bench_td_max = bench_weight[bench_weight['td'] <= td]['td'].max()
@@ -61,12 +59,12 @@ def set_variables(period, td = (datetime.datetime.now() + timedelta(days=1)).str
     S = pd.get_dummies(industry_df['industry'], drop_first = True)
 
 def optimize(must_full = False):
-    x_k = 0.5 # Maximum alpha factor exposure
+    x_k = 1 # Maximum alpha factor exposure
     k = 10 # Risk aversion coefficient
     
     # Objective function
     P = matrix(np.array(2 * k * V))
-    q = matrix(np.array(-X @ expected_f))
+    q = matrix(np.array(-expected_Xf))
 
     # Inequality constraint
     # Maximum alpha factor exposure constraint
@@ -86,8 +84,8 @@ def optimize(must_full = False):
     b1 = np.zeros((S.shape[1], 1))
 
     # Zero risk factor exposure constraint
-    A2 = Xr.T
-    b2 = np.zeros((Xr.shape[1], 1))
+    A2 = Xb.T
+    b2 = np.zeros((Xb.shape[1], 1))
 
     A = matrix(np.vstack((A1, A2)))
     b = matrix(np.vstack((b1, b2)))
@@ -106,9 +104,9 @@ def optimize(must_full = False):
     optimal_excess_exposure = X.T @ list(sol['x'])
     return optimal_weight, optimal_excess_exposure
 
-def backtest_iteration(period, td):
+def backtest_iteration(td):
     print('Optimizing', td)
-    set_variables(period, td = td)
+    set_variables(td = td)
 
     try:
         optimal_weight, optimal_exposure = optimize()
@@ -117,7 +115,7 @@ def backtest_iteration(period, td):
         print(f'Missing data for {td}')
         return np.nan, np.nan
 
-def backtest_portfolio(period, start_date, end_date = datetime.date.today().strftime('%Y%m%d')):
+def backtest_portfolio():
     all_td = pd.read_csv('factor_return.csv')['td'].unique()
     all_td = [td for td in all_td if td >= int(start_date) and td <= int(end_date)]
     portfolio = pd.DataFrame(columns = ['td', 'codenum', 'weight'])
@@ -152,5 +150,5 @@ def backtest_portfolio(period, start_date, end_date = datetime.date.today().strf
     print('Backtest portofolio generated!')
 
 if __name__ == '__main__':
-    # print(backtest_iteration(20,20230104).sort_values(ascending = False))
-    backtest_portfolio(200, 20190101)
+    print(backtest_iteration(20,20230104).sort_values(ascending = False))
+    #backtest_portfolio(200, 20190101)

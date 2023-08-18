@@ -17,11 +17,25 @@ def log(x):
 def sign(x):
     return np.sign(x)
 
+def lag(x, d):
+    output = pd.Series(dtype='float64')
+    for indices in codenum_group.values():
+        sub_x = x.loc[indices]
+        output = pd.concat([output, sub_x.shift(d)])
+    return output.reindex(x.index)
+
 def delta(x, d):
     output = pd.Series(dtype='float64')
     for indices in codenum_group.values():
         sub_x = x.loc[indices]
         output = pd.concat([output, sub_x - sub_x.shift(d)])
+    return output.reindex(x.index)
+
+def delta_pct(x, d):
+    output = pd.Series(dtype='float64')
+    for indices in codenum_group.values():
+        sub_x = x.loc[indices]
+        output = pd.concat([output, (sub_x - sub_x.shift(d)) / sub_x.shift(d) - 1])
     return output.reindex(x.index)
 
 def ts_sum(x, d):
@@ -127,8 +141,6 @@ def decay_linear(x, d):
         output = pd.concat([output, np.convolve(sub_x, weights / weights.sum(), mode='valid')])
     return output.reindex(x.index)
 
-# Definitions of factors
-
 # Must have no exposure. Controlled by quadratic programming
 def get_size_factor():
     size_factor = {}
@@ -145,6 +157,7 @@ def get_value_factors():
     value_factors['OCFP'] = {'indicators': ['OCFPS']}
     value_factors['NCFP'] = {'indicators': ['net_operating_cashflow', 'net_invest_cashflow', 'net_finance_cashflow', 'market_cap'],
                             'function': lambda df : df[['net_operating_cashflow', 'net_invest_cashflow', 'net_finance_cashflow']].sum(axis = 1) / df['market_cap']}
+
     return value_factors
 
 def get_growth_factors():
@@ -152,6 +165,7 @@ def get_growth_factors():
     growth_factors['sales_growth_ttm'] = {'indicators': ['operating_revenue'], 'function': lambda df: delta(df['operating_revenue'], 260)}
     growth_factors['profit_growth_ttm'] = {'indicators': ['deducted_profit'], 'function': lambda df: delta(df['deducted_profit'], 260)}
     growth_factors['operationcashflow_growth_ttm'] = {'indicators': ['net_operating_cashflow'], 'function': lambda df: delta(df['net_operating_cashflow'], 260)}
+
     return growth_factors
 
 def get_financial_quality_factors():
@@ -162,6 +176,7 @@ def get_financial_quality_factors():
     # financial_quality_factors['profitmargin'] = {'indicators': ['operating_profit', 'operating_revenue'], 'function': lambda df: df['operating_profit'] / df['operating_revenue']}
     financial_quality_factors['assetturnover'] = {'indicators': ['operating_revenue', 'total_assets'], 'function': lambda df: df['operating_revenue'] / df['total_assets']}
     financial_quality_factors['operationcashflowratio'] = {'indicators': ['net_operating_cashflow', 'net_profit'], 'function': lambda df: df['net_operating_cashflow'] / df['net_profit']}
+
     return financial_quality_factors
 
 def get_leverage_factors():
@@ -173,6 +188,7 @@ def get_leverage_factors():
     leverage_factors['cashratio'] = {'indicators': ['cash', 'account_receivable', 'total_current_liabilities'],
                                     'function': lambda df: (df['cash'] + df['account_receivable']) / df['total_current_liabilities']}
     leverage_factors['currentratio'] = {'indicators': ['total_current_assets', 'total_current_liabilities'], 'function': lambda df: df['total_current_assets'] / df['total_current_liabilities']}
+
     return leverage_factors
 
 def HAlpha(df):
@@ -207,6 +223,7 @@ def get_momentum_factors():
     momentum_factors['weighted_strength_3m'] = {'indicators': ['gain', 'vol'], 'function': lambda df: ts_sum(df['gain'] * df['vol'], 3 * 21)}
     momentum_factors['weighted_strength_6m'] = {'indicators': ['gain', 'vol'], 'function': lambda df: ts_sum(df['gain'] * df['vol'], 6 * 21)}
     momentum_factors['weighted_strength_12m'] = {'indicators': ['gain', 'vol'], 'function': lambda df: ts_sum(df['gain'] * df['vol'], 12 * 21)}
+
     return momentum_factors
 
 def beta_consistency(df):
@@ -245,21 +262,18 @@ def get_volatility_factors():
     volatility_factors['ln_price'] = {'indicators': ['close'], 'function': lambda df: np.log(df['close'])}
     # Slow due to loops
     # volatility_factors['beta_consistency'] = {'indicators': ['td', 'codenum', 'gain'], 'function': beta_consistency}
+
     return volatility_factors
 
 def get_turnover_factors():
     turnover_factors = {}
-    turnover_factors['turnover_1m'] = {'indicators': ['vol' ,'total_share'], 'function': lambda df: ts_sum(df['vol'], 1 * 21) / df['total_share']}
-    turnover_factors['turnover_2m'] = {'indicators': ['vol' ,'total_share'], 'function': lambda df: ts_sum(df['vol'], 2 * 21) / df['total_share']}
-    turnover_factors['turnover_3m'] = {'indicators': ['vol' ,'total_share'], 'function': lambda df: ts_sum(df['vol'], 3 * 21) / df['total_share']}
-    turnover_factors['turnover_6m'] = {'indicators': ['vol' ,'total_share'], 'function': lambda df: ts_sum(df['vol'], 6 * 21) / df['total_share']}
-    turnover_factors['turnover_12m'] = {'indicators': ['vol' ,'total_share'], 'function': lambda df: ts_sum(df['vol'], 12 * 21) / df['total_share']}
-    return turnover_factors
+    turnover_factors['turnover_1m'] = {'indicators': ['vol' ,'float_share'], 'function': lambda df: ts_sum(df['vol'], 1 * 21) / df['float_share']}
+    turnover_factors['turnover_2m'] = {'indicators': ['vol' ,'float_share'], 'function': lambda df: ts_sum(df['vol'], 2 * 21) / df['float_share']}
+    turnover_factors['turnover_3m'] = {'indicators': ['vol' ,'float_share'], 'function': lambda df: ts_sum(df['vol'], 3 * 21) / df['float_share']}
+    turnover_factors['turnover_6m'] = {'indicators': ['vol' ,'float_share'], 'function': lambda df: ts_sum(df['vol'], 6 * 21) / df['float_share']}
+    turnover_factors['turnover_12m'] = {'indicators': ['vol' ,'float_share'], 'function': lambda df: ts_sum(df['vol'], 12 * 21) / df['float_share']}
 
-def get_modified_momentum_factors():
-    modified_momentum_factors = {}
-    
-    return modified_momentum_factors
+    return turnover_factors
 
 def codenum_adjacency(df):
     output = pd.Series(dtype='float64')
@@ -285,7 +299,7 @@ def ts_ranked_chg_div(df):
 
 def get_volume_price_factors():
     volume_price_factors = {}
-    volume_price_factors['FR'] = {'indicators': ['vol', 'total_share', 'gain'], 'function': lambda df: correlation(df['vol'] / df['total_share'], df['gain'], 21)}
+    volume_price_factors['FR'] = {'indicators': ['vol', 'float_share', 'gain'], 'function': lambda df: correlation(df['vol'] / df['float_share'], df['gain'], 21)}
     volume_price_factors['WQ003'] = {'indicators': ['codenum', 'vol', 'open'], 'function': lambda df: (-1 * correlation(rank(df['open']), rank(df['vol']), 10))}
     volume_price_factors['WQ006'] = {'indicators': ['codenum', 'open', 'vol'], 'function': lambda df: -1 * correlation(df['open'], df['vol'], 10)}
     # volume_price_factors['WQ012'] = {'indicators': ['vol', 'close'], 'function': lambda df: sign(delta(df['vol'], 1)) * (-1 * delta(df['close'], 1))}
@@ -348,9 +362,89 @@ def get_WQ_factors():
     WQ_factors['WQ028'] = {'indicators': ['high', 'low', 'close'], 'function': lambda df: (df['high'] + df['low']) / 2 - df['close']}
     return WQ_factors
 
+def sell_tend(df):
+    N = 10
+    d = 0.23
+    df['turnover'] = df['vol'] / df['float_share']
+    gain_series = []
+    loss_series = []
+    omega_series = []
+    for n in range(1, N):
+        diff = delta_pct(df['close'], n)
+        gain = diff.copy()
+        gain[gain < 0] = 0
+        loss = diff.copy()
+        loss[loss > 0] = 0
+        omega = np.multiply(lag(df['turnover'], n), np.prod([1 - lag(df['turnover'], i) for i in range(n)], axis = 0))
+        gain_series.append(gain)
+        loss_series.append(loss)
+        omega_series.append(omega)
+    gain_series = pd.DataFrame(gain_series)
+    loss_series = pd.DataFrame(loss_series)
+    omega_series = pd.DataFrame(omega_series)
+    omega_series = omega_series / omega_series.sum(axis = 0)
+    x =  (omega_series * gain_series - omega_series * loss_series * d).sum(axis = 0)
+    return x
+
+def TK_weight(weekly):
+    y = 0.61
+    d = 0.69
+    current = weekly.iloc[-1]
+
+    if current > 0:
+        P_g = (weekly > current).sum()
+        P_ge = P_g + (weekly == current).sum()
+        P_g = P_g / len(weekly)
+        P_ge = P_ge / len(weekly)
+        g = P_g ** y / (P_g ** y + (1-P_g) ** y) ** (1/y)
+        ge = P_ge ** y / (P_ge ** y + (1-P_ge) ** y) ** (1/y)
+        pi = ge - g
+
+    else:
+        P_s = (weekly < current).sum()
+        P_se = P_s + (weekly == current).sum()
+        P_s = P_s / len(weekly)
+        P_se = P_se / len(weekly)
+        s = P_s ** d / (P_s ** d + (1-P_s) ** d) ** (1/d)
+        se = P_se ** d / (P_se ** d + (1-P_se) ** d) ** (1/d)
+        pi = se - s
+
+    return pi
+
+def TK(df):
+    a = 0.88
+    l = 2.25
+    N_weeks = 60
+    TK = pd.Series(dtype='float64')
+    for stock, sub_df in df.groupby('codenum'):
+        sub_df['weekly'] = sub_df['gain'].rolling(window = 5, min_periods = 5).sum()
+        sub_df['util'] = sub_df['weekly'].copy()
+        mask = (sub_df['util'] < 0)
+        sub_df['util'] = sub_df['util'].abs() ** a
+        sub_df['util'][mask] = -l * sub_df['util'][mask]
+        sub_df['weight'] = sub_df['weekly'].rolling(window = N_weeks, min_periods = N_weeks).apply(TK_weight)
+        sub_df['util'].fillna(0, inplace=True)
+        sub_df['weight'].fillna(0, inplace=True)
+        sub_df['TK'] = sub_df['util'].rolling(window = N_weeks, min_periods = N_weeks).apply(lambda x: np.dot(x, sub_df['weight'].iloc[-N_weeks:]), raw = True)
+        TK = pd.concat([TK, sub_df['TK']])
+    return TK.reindex(df.index)
+
+def get_bahavioral_factors():
+    behavioral_factors = {}
+    behavioral_factors['sell_tend'] = {'indicators': ['close', 'vol', 'float_share'], 'function': sell_tend}
+    # Useless
+    # behavioral_factors['TK'] = {'indicators': ['codenum', 'gain'], 'function': TK}
+    return behavioral_factors
+
+def get_style_factors():
+    return {**get_value_factors(), **get_growth_factors(), **get_financial_quality_factors(), **get_leverage_factors(), **get_momentum_factors(), 
+            **get_volatility_factors(), **get_turnover_factors()}
+
+def get_alpha_factors():
+    return {**get_codenum_factor(), **get_volume_price_factors(), **get_WQ_factors(), **get_bahavioral_factors()}
+
 def get_factor_group_list():
-    return [get_value_factors(), get_growth_factors(), get_financial_quality_factors(), get_leverage_factors(), get_momentum_factors(), 
-            get_volatility_factors(), get_turnover_factors(), get_modified_momentum_factors(), get_codenum_factor(), get_volume_price_factors(), get_WQ_factors(), get_size_factor()]
+    return [get_style_factors(), get_alpha_factors(), get_size_factor()]
 
 def get_all_factors():
     factor_dict = {}
@@ -358,78 +452,10 @@ def get_all_factors():
         factor_dict = {**factor_dict, **factor_group}
     return factor_dict
 
-
 # Factor calculations and tests
 def last_day_of_last_quarter(current_date):
     quarters_finished = (current_date.month - 1) // 3
     return datetime.date(current_date.year, quarters_finished * 3 + 1, 1) + datetime.timedelta(days=-(1))
-
-def query_SQL_finance(min_date, max_date, factors = [], stocks = []):
-    factor_list = 'fd, codenum'
-    if len(factors) != 0:
-        factor_list = factor_list + ', ' + ', '.join(factors)
-
-    if len(stocks) != 0:
-        stock_list = ', '.join([f"'{stock}'" for stock in stocks])
-        query = f"SELECT {factor_list} FROM finance WHERE fd BETWEEN {min_date} AND {max_date} and codenum IN ({stock_list}) ORDER BY fd ASC;"
-    else:
-        query = f"SELECT {factor_list} FROM finance WHERE fd BETWEEN {min_date} AND {max_date} ORDER BY fd ASC;"
-    
-    finance_df = pd.read_sql(query, mydb)
-    year = finance_df['fd'] // 10000
-    month_day = finance_df['fd'] % 10000
-    month_day = month_day.replace({
-        331: 430,
-        630: 830,
-        930: 1031,
-        1231: 10430
-    })
-    finance_df['disclosure'] = (year * 10000 + month_day).astype('str')
-    finance_df['fd'] = finance_df['fd'].astype('str')
-
-    # Delete 4th quarter data
-    finance_df = finance_df[~finance_df['fd'].str.contains('1231')]
-
-    return finance_df
-
-def query_SQL_finance_deriv(min_date, max_date, factors = [], stocks = []):
-
-    factor_list = 'fd, codenum'
-    if len(factors) != 0:
-        factor_list = factor_list + ', ' + ', '.join(factors)
-
-    if len(stocks) != 0:
-        stock_list = ', '.join([f"'{stock}'" for stock in stocks])
-        query = f"SELECT {factor_list} FROM finance_deriv WHERE fd BETWEEN {min_date} AND {max_date} and codenum IN ({stock_list}) ORDER BY fd ASC;"
-    else:
-        query = f"SELECT {factor_list} FROM finance_deriv WHERE fd BETWEEN {min_date} AND {max_date} ORDER BY fd ASC;"
-    
-    finance_deriv_df = pd.read_sql(query, mydb)
-    year = finance_deriv_df['fd'] // 10000
-    month_day = finance_deriv_df['fd'] % 10000
-    month_day = month_day.replace({
-        331: 430,
-        630: 830,
-        930: 1031,
-        1231: 10430
-    })
-    finance_deriv_df['disclosure'] = (year * 10000 + month_day).astype('str')
-    finance_deriv_df['fd'] = finance_deriv_df['fd'].astype('str')
-
-    # Delete 4th quarter data
-    finance_deriv_df = finance_deriv_df[~finance_deriv_df['fd'].str.contains('1231')]
-
-    return finance_deriv_df
-
-def query_SQL_company(stocks = []):
-    #Gets the industry information of the stocks
-    if len(stocks) != 0:
-        stock_list = ', '.join([f"'{stock}'" for stock in stocks])
-        query = f'SELECT codenum, SW_c1_name_CN AS industry FROM company WHERE codenum IN ({stock_list})'
-    else:
-        query = f'SELECT codenum, SW_c1_name_CN AS industry FROM company'
-    
-    return pd.read_sql(query, mydb)
 
 def normalize(series):
     mean = series.mean()
@@ -455,7 +481,13 @@ def replace_duplicates_with_suffixes(lst):
 
     return result
 
-def calc_factors(start_date, end_date = datetime.date.today().strftime('%Y%m%d'), stocks = [], factors = {}):
+def calc_factors(factors = {}):
+
+    if len(factors) == 0:
+        to_csv = True
+        factors = get_all_factors()
+    else:
+        to_csv = False
 
     #Get columns of finance table
     query = f"SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'astocks' AND TABLE_NAME = 'finance';"
@@ -484,10 +516,10 @@ def calc_factors(start_date, end_date = datetime.date.today().strftime('%Y%m%d')
                 else:
                     raise Exception(f'"{indicator}" does not exist in finance, finance_deriv or market tables!')
 
-    finance_df = query_SQL_finance(start_date - 10000, end_date, factors = fin_ind, stocks = stocks)
-    finance_deriv_df = query_SQL_finance_deriv(start_date - 10000, end_date, factors = fin_deriv_ind, stocks = stocks)
-    market_df = query_SQL_market(start_date, end_date, indicators = market_ind, stocks = stocks)
-    company_df = query_SQL_company(stocks = stocks)
+    finance_df = query_SQL_finance(factors = fin_ind)
+    finance_deriv_df = query_SQL_finance_deriv(factors = fin_deriv_ind)
+    market_df = query_SQL_market(indicators = market_ind)
+    company_df = query_SQL_company()
 
     finance_merged = pd.merge(finance_df, finance_deriv_df, how = 'inner', on = ['fd', 'disclosure', 'codenum'])
 
@@ -542,11 +574,17 @@ def calc_factors(start_date, end_date = datetime.date.today().strftime('%Y%m%d')
     merged_df = merged_df.sort_values('td') # Ensures it is sorted by td
     merged_df['gain_next'] = merged_df.groupby('codenum')['gain'].shift(-1)
 
-    merged_df.to_csv('factors.csv', index = False)
+    if to_csv:
+        merged_df.to_csv('factors.csv', index = False)
+        print('All factors calculated!')
+
     return merged_df
 
-def IC_test(factor_key = '', period = 1):
-    factor_pool = pd.read_csv('factors.csv')
+def IC_test(factor_key = '', period = 1, df = 'factors.csv'):
+    if type(df) == str:
+        factor_pool = pd.read_csv(df)
+    else:
+        factor_pool = df
     if factor_key != '':
         factor_pool = factor_pool[['td', 'codenum', 'gain_next', 'factor_' + factor_key]]
     factor_cols = factor_pool.filter(like = 'factor_').columns.to_list()
@@ -582,20 +620,24 @@ def IC_test(factor_key = '', period = 1):
         IC_series.to_csv(f'IC_period_{period}.csv', index = False)
         return IR
 
-def IR_test(factor_key = '', periods = [1,2,3,5,10,20,40]):
+def IR_test(factor_key = '', periods = [1,2,3,5,10,20,40], df = 'factors.csv'):
     IR_df = pd.DataFrame()
     for period in periods:
         print('Calculating data with period length', period)
-        IR = IC_test(factor_key=factor_key, period=period)
+        IR = IC_test(factor_key=factor_key, period=period, df = df)
         IR_df = pd.concat([IR_df, IR], axis = 1)
     if factor_key == '':
         IR_df.to_csv('IR.csv')
     else:
         print(IR_df)
 
-def group_backtest(factor_key, period = 1, divide_groups = 5):
+def group_backtest(factor_key, period = 1, divide_groups = 5, df = 'factors.csv'):
     factor_name = 'factor_' + factor_key
-    factor_pool = pd.read_csv('factors.csv')[['td', 'codenum', 'gain_next'] + [factor_name]]
+    if type(df) == str:
+        factor_pool = pd.read_csv(df)
+    else:
+        factor_pool = df
+    factor_pool = factor_pool[['td', 'codenum', 'gain_next'] + [factor_name]]
     sub_dfs = []
     for stock, sub_df in factor_pool.groupby('codenum'):
         sub_df['gain_next_mean'] = sub_df['gain_next'].rolling(window = period).mean().shift(-period + 1)
@@ -633,29 +675,11 @@ def group_backtest(factor_key, period = 1, divide_groups = 5):
     plt.savefig('grouped_backtest.png')
     plt.show()
 
-def calc_all_factors(start_date, stocks = []):
-    calc_factors(start_date, factors = get_all_factors(), stocks = stocks)
-    print('All factors calculated!')
-
-def test_factor(start_date, end_date, factor_key, stocks = [], period = 1):
-    calc_factors(start_date, end_date = end_date, factors = {factor_key: get_all_factors()[factor_key]}, stocks = stocks)
-    IC_test(factor_key = factor_key, period = period)
-    IR_test(factor_key = factor_key)
-    group_backtest(factor_key = factor_key, period = period)
+def test_factor(factor_key, period = period):
+    df = calc_factors(factors = {factor_key: get_all_factors()[factor_key]}, stocks = stocks)
+    IC_test(factor_key = factor_key, period = period, df = df)
+    group_backtest(factor_key = factor_key, period = period, df = df)
 
 if __name__ == '__main__':
 
-    start_date = 20200101
-    end_date = 20210101
-
-    if start_date >= end_date:
-        raise ValueError('Date Error!')
-
-    #stocks_tested = random_stocks(500, start_date, end_date)
-
-    IC_test(factor_key='WQ010',period = 1)
-    #group_backtest(factor_key='WQ006',period=40)
-
-    # query_SQL_finance(20210101, 20221231, stocks = [])
-
-    # calc_factors(start_date=start_date, end_date=end_date, stocks=stocks_tested)
+    test_factor('financial_leverage', period = 1)
