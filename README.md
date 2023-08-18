@@ -9,7 +9,7 @@ select_factors.py: Select factors with a loop, decolinearize them, and put them 
 
 optimization.py: Calculate the optimal portfolio for each day with quadratic programming.
 
-注：股票涨幅命名为'gain'。我起先不知道表格中有chg。股票涨幅定义为chg / 100.
+注：股票涨幅命名为'gain'。股票涨幅定义为chg / 100.
 
 Notes on Aug 18, 2023
 这两周参阅了更广泛的资料，并对模型的许多方面做出了改进。针对处理速度慢的问题，我尽量避免使用for循环，而是改用pandas内置的method, 例如rolling, cumprod等，速度显著提升。optimization采用multiprocessing并行计算。
