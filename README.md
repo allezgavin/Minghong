@@ -11,6 +11,19 @@ optimization.py: Calculate the optimal portfolio for each day with quadratic pro
 
 注：股票涨幅命名为'gain'。我起先不知道表格中有chg。股票涨幅定义为chg / 100.
 
+Notes on Aug 18, 2023
+这两周参阅了更广泛的资料，并对模型的许多方面做出了改进。针对处理速度慢的问题，我尽量避免使用for循环，而是改用pandas内置的method, 例如rolling, cumprod等，速度显著提升。optimization采用multiprocessing并行计算。
+
+factors.py文件合并到了factors_test.py中。factor的定义中舍弃了'lag'，并重新定义了诸多合成因子所需要的函数。计算过程中经常要将因子按日期或股票groupby，为了提高速度，我将对应的index以字典的形式存储为全局变量。
+
+alpha因子和风格因子也进行了区分。风格因子全部进行行业和市值对数的中性化，alpha因子则无需统一中性化。在optimization中，针对alpha因子和风格因子的处理方式也有所不同，例如预测因子收益率的半衰期和二次规划中允许的最大因子暴露。下一步可以采用择时策略对风格因子进行轮动。
+
+factor_test中删除了t_test, 转而使用IC和IR作为因子检验标准。结果显示，许多过去非常有效的因子在2022和2023年纷纷失效。其中，来自于WorldQuant的alpha因子可能是由于过拟合而失效。因子的参数还有待调整。
+
+select_factor的方法有重大改变。alpha对所有收益率直接Lasso回归，剔除系数为0的因子；风格因子则是在横截面上（逐日）对收益率Lasso回归，剔除系数为0次数最多的因子。通过调整斜率惩罚项系数的值来获得目标数量的因子。选择完因子后，factor_regression_history使用Ridge回归，以确保因子收益率的回归值较为稳定，尤其是当因子具有共线性时。
+
+optimization中加入了许多限制条件，例如最大alpha因子和风格因子暴露，行业中性，市值中性等等。
+
 Notes on Aug 6, 2023
 本repository中的多因子模型主要参考了华泰基金的研报和一些知乎上的资料。程序先从Sequel数据库中下载market, finance, finance_deriv, company, indexprice, indexweight等表中的相关数据，再利用pandas处理数据。此方法似乎运行速度较慢，可能和文件过大有关，也可能是我写的程序的原因。我在考虑使用一个移动硬盘，配合数据库软件来存取计算过程中产生的数据（例如各因子的数值）。
 
