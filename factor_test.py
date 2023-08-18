@@ -502,8 +502,8 @@ def calc_factors(factors = {}):
     fin_ind = set()
     fin_deriv_ind = set()
     market_ind = set()
-    market_ind.add('chg') #Prepares for calculating everyday gain
-    market_ind.add('market_cap') #Prepares for neutralization. 'market_cap' can be handled by read_SQL_market()
+    market_ind.add('chg') # Prepares for calculating everyday gain
+    market_ind.add('market_cap') # Prepares for neutralization. 'market_cap' is handled by read_SQL_market()
     for factor in factors:
         for indicator in factors[factor]['indicators']:
             if indicator not in ['td', 'fd', 'codenum', 'chg', 'market_cap', 'gain']:
@@ -527,6 +527,7 @@ def calc_factors(factors = {}):
     merged_df = pd.merge_asof(market_df, finance_merged, left_on = 'td', right_on = 'disclosure', by = 'codenum', direction = 'backward')
     merged_df = pd.merge(merged_df, company_df, how = 'inner', on = 'codenum')
     merged_df['gain'] = (merged_df['chg']) / 100
+    merged_df['ln_market_cap'] = np.log(merged_df['market_cap'])
 
     # Get indices of td and codenum groups
     global td_group, codenum_group # Multable objects so information can be passed to factor functions
@@ -560,9 +561,20 @@ def calc_factors(factors = {}):
         if len(merged_df) < 36:
             raise Exception(f'Backtest time span is too short for factor {factor}!')
 
-        # With neither neutralizations, only normalization:
-        merged_df[f'factor_{factor}'] = normalize(merged_df[factor])
-        factor_cols.append(f'factor_{factor}')
+        if factor in get_style_factors().keys():
+            #industry neutralization
+            merged_df[f'factor_{factor}'] = merged_df[[factor, 'industry']].groupby('industry').transform(normalize)
+
+            #market-cap neutralization
+            linregress_market_cap = LinearRegression()
+            linregress_market_cap.fit(merged_df.dropna(subset = ['ln_market_cap', 'factor_' + factor])['ln_market_cap'].values.reshape(-1, 1), merged_df.dropna(subset = ['ln_market_cap', 'factor_' + factor])['factor_' + factor])
+            merged_df[f'factor_{factor}'] = merged_df.dropna(subset = ['ln_market_cap', 'factor_' + factor])[f'factor_{factor}'] - linregress_market_cap.predict(merged_df.dropna(subset = ['ln_market_cap', 'factor_' + factor])['ln_market_cap'].values.reshape(-1, 1))
+            factor_cols.append(f'factor_{factor}')
+
+        else:
+            # With neither neutralizations, only normalization:
+            merged_df[f'factor_{factor}'] = normalize(merged_df[factor])
+            factor_cols.append(f'factor_{factor}')
 
         merged_df = merged_df.copy()
     
