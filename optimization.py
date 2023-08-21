@@ -63,8 +63,7 @@ residual_df['residual_var_pred'] = residual_df.groupby('codenum')['residual'].tr
 
 
 def set_variables(td = (datetime.datetime.now() + timedelta(days=1)).strftime('%Y%m%d')):
-    global X, Xa, Xb, stock_num, expected_Xf, F, V, p_B, S
-    
+    global X, Xa, Xb, Xs, stock_num, expected_Xf, F, V, p_B, S
     X = factors_selected[factors_selected['td'] == td].set_index('codenum')[factor_cols]
     stock_num = X.shape[0]
 
@@ -76,6 +75,7 @@ def set_variables(td = (datetime.datetime.now() + timedelta(days=1)).strftime('%
 
     Xa = X[alpha_factor_cols]
     Xb = X[style_factor_cols]
+    Xs = X[size_factor_col]
 
     residual_var = residual_df[residual_df['td'] == td].set_index('codenum')['residual_var_pred']
     residual_var = residual_var.reindex(X.index).fillna(residual_var.mean())
@@ -97,8 +97,9 @@ def set_variables(td = (datetime.datetime.now() + timedelta(days=1)).strftime('%
     industry_df = industry_info.reindex(X.index).fillna('unknown')
     S = pd.get_dummies(industry_df['industry'], drop_first = True)
 
-def optimize(must_full = False):
-    x_k = 1 # Maximum alpha factor exposure
+def optimize(must_full = True):
+    x_a = 1 # Maximum alpha factor exposure
+    x_b = 0.2 # Maximum beta factor exposure
     k = 10 # Risk aversion coefficient
     
     # Objective function
@@ -108,23 +109,27 @@ def optimize(must_full = False):
     # Inequality constraint
     # Maximum alpha factor exposure constraint
     G1 = np.vstack((Xa.T, -Xa.T))
-    h1 = np.ones((2 * Xa.shape[1], 1)) * x_k
+    h1 = np.ones((2 * Xa.shape[1], 1)) * x_a
+
+    # Maximum beta factor exposure constraint
+    G2 = np.vstack((Xb.T, -Xb.T))
+    h2 = np.ones((2 * Xa.shape[1], 1)) * x_b
 
     # Minimum weight constraint
-    G2 = np.eye(X.shape[0]) * -1
-    h2 = p_B.values.reshape(-1, 1)
+    G3 = np.eye(X.shape[0]) * -1
+    h3 = p_B.values.reshape(-1, 1)
 
-    G = matrix(np.vstack((G1, G2)))
-    h = matrix(np.vstack((h1, h2)))
+    G = matrix(np.vstack((G1, G2, G3)))
+    h = matrix(np.vstack((h1, h2, h3)))
 
     # Equality constraint
     # Industry neutral constraint
     A1 = S.T
     b1 = np.zeros((S.shape[1], 1))
 
-    # Zero risk factor exposure constraint
-    A2 = Xb.T
-    b2 = np.zeros((Xb.shape[1], 1))
+    # Zero market cap exposure constraint
+    A2 = Xs.T
+    b2 = np.zeros((1, 1))
 
     A = matrix(np.vstack((A1, A2)))
     b = matrix(np.vstack((b1, b2)))
@@ -144,9 +149,10 @@ def optimize(must_full = False):
     return optimal_weight, optimal_excess_exposure
 
 def backtest_iteration(td):
-    print('Optimizing', td)
-    set_variables(td = td)
 
+    print('Optimizing', td)
+
+    set_variables(td = td)
     try:
         optimal_weight, optimal_exposure = optimize()
         return optimal_weight, optimal_exposure
@@ -155,6 +161,7 @@ def backtest_iteration(td):
         return np.nan, np.nan
 
 def backtest_portfolio():
+
     all_td = pd.read_csv('factor_return.csv')['td'].unique()
     all_td = [td for td in all_td if td >= int(start_date) and td <= int(end_date)]
     portfolio = pd.DataFrame(columns = ['td', 'codenum', 'weight'])
@@ -190,5 +197,7 @@ def backtest_portfolio():
     print('Backtest portofolio generated!')
 
 if __name__ == '__main__':
-    print(backtest_iteration(20230104)[0].sort_values(ascending = False))
-    # backtest_portfolio()
+
+    #print(backtest_iteration(20230104)[0].sort_values(ascending = False))
+    
+    backtest_portfolio()
