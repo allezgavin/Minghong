@@ -6,19 +6,23 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning, message="pandas only supports SQLAlchemy connectable")
 warnings.filterwarnings("ignore", category=UserWarning, message="The default dtype for empty Series will be 'object'")
 
-mydb = mysql.connector.connect(
-    host="172.31.50.91",
-    user="guest",
-    password="MH#123456",
-    database="astocks"
-    )
+local = False
 
-# mydb = mysql.connector.connect(
-#     host="127.0.0.1",
-#     user="root",
-#     password="20040203",
-#     database="Minghong"
-#     )
+if local:
+    mydb = mysql.connector.connect(
+        host="127.0.0.1",
+        user="root",
+        password="20040203",
+        database="Minghong"
+        )
+else:
+    mydb = mysql.connector.connect(
+        host="172.31.50.91",
+        user="guest",
+        password="MH#123456",
+        database="astocks"
+        )
+
 
 def query_SQL_market(indicators):
     if 'market_cap' in indicators:
@@ -73,7 +77,7 @@ def query_SQL_finance_deriv(factors = []):
         factor_list = factor_list + ', ' + ', '.join(factors)
 
     stock_list = ', '.join([f"'{stock}'" for stock in stocks])
-    query = f"SELECT {factor_list} FROM finance_deriv WHERE fd BETWEEN {start_date} AND {start_date} and codenum IN ({stock_list}) ORDER BY fd ASC;"
+    query = f"SELECT {factor_list} FROM finance_deriv WHERE fd BETWEEN {start_date} AND {end_date} and codenum IN ({stock_list}) ORDER BY fd ASC;"
     
     finance_deriv_df = pd.read_sql(query, mydb)
     year = finance_deriv_df['fd'] // 10000
@@ -100,9 +104,8 @@ def query_SQL_company():
     return pd.read_sql(query, mydb)
 
 def query_SQL_csi300():
-    query = f"SELECT td, chg / 100 AS gain FROM indexprice WHERE td BETWEEN {start_date} AND {end_date} and indexnum='000300.SH' ORDER BY td ASC"
+    query = f"SELECT td, close, chg / 100 AS gain FROM indexprice WHERE td BETWEEN {start_date} AND {end_date} and indexnum='000300.SH' ORDER BY td ASC"
     df = pd.read_sql(query, mydb).dropna(subset = ['gain']).reset_index(drop = True)
-
     df['td'] = df['td'].astype('str')
     df['cumulative'] = df['close'] / df['close'][0]
 
@@ -124,12 +127,14 @@ period = 5
 stocks = csi300_stocks()
 
 start_date = 20190101
-end_date = datetime.date.today().strftime('%Y%m%d')
+end_date = int(datetime.date.today().strftime('%Y%m%d'))
 
 if end_date <= start_date:
     raise Exception('end_date <= start_date!')
 if start_date < 20020101:
     raise Exception('start_date too early!')
 
-
+if __name__ == '__main__':
+    print(query_SQL_finance_deriv())
+    pass
 

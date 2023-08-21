@@ -45,10 +45,10 @@ def backtest(portfolio_or_pathfile, annual_interest_rate = 0.0165, bench = True)
     turnover = port.groupby('codenum')['weight'].agg(lambda x: (x - x.shift(1, fill_value = 0)).abs().mean()/2).sum()
     
     df = query_SQL_market(indicators = ['open', 'close', 'chg'])
+    df['td'] = df['td'].astype('str')
+    df = df[(df['td'] >= port['td'].min()) & (df['td'] <= port['td'].max())]
     
     df['rise'] = df['chg'] / 100
-
-    df['td'] = df['td'].astype('str')
     
     df = pd.merge(df, port, how = 'left', on = ['td', 'codenum'])
     df.fillna(0, inplace = True)
@@ -69,8 +69,9 @@ def backtest(portfolio_or_pathfile, annual_interest_rate = 0.0165, bench = True)
     bench = query_SQL_csi300()
 
     #how = 'inner' only keeps the rows that have matching dates in both dataframes!!!
-    merged = bench.merge(day_total, how = 'inner', on = 'td')
-    merged.columns = ['td', 'gain_benchmark', 'cumulative_benchmark', 'date', 'gain_trader', 'cumulative_trader']
+    merged = day_total.merge(bench, how = 'left', on = 'td')
+    merged.columns = ['td', 'date', 'gain_trader', 'cumulative_trader', 'indexprice', 'gain_benchmark', 'cumulative_benchmark']
+    merged['cumulative_benchmark'] = merged['cumulative_benchmark'] / merged['cumulative_benchmark'].iloc[0]
     merged.set_index('td', inplace = True)
 
     if len(merged) < len(bench):
@@ -78,19 +79,19 @@ def backtest(portfolio_or_pathfile, annual_interest_rate = 0.0165, bench = True)
     if len(merged) < len(day_total):
         print('Warning: missing dates in CSI300 data!')
 
-    merged['gain_trader'].to_csv('daily_profit.csv')
-    merged['gain_benchmark'].to_csv('daily_benchmark.csv')
-    merged['cumulative_trader'].to_csv('cumulative_profit.csv')
-    merged['cumulative_benchmark'].to_csv('cumulative_benchmark.csv')
+    # merged['gain_trader'].to_csv('daily_profit.csv')
+    # merged['gain_benchmark'].to_csv('daily_benchmark.csv')
+    # merged['cumulative_trader'].to_csv('cumulative_profit.csv')
+    # merged['cumulative_benchmark'].to_csv('cumulative_benchmark.csv')
 
     weekly_profit = merged.groupby(pd.Grouper(key = 'date', freq = 'W-MON'))['gain_trader'].sum().reset_index(drop = True)
-    weekly_profit.to_csv('weekly_profit.csv')
+    # weekly_profit.to_csv('weekly_profit.csv')
     
     # opens = merged.groupby(pd.Grouper(key='date', freq='W-MON'))['open_benchmark'].first()
     # closes = merged.groupby(pd.Grouper(key='date', freq='W-MON'))['close_benchmark'].last()
     # weekly_bench = (closes['close'] - opens['open']) / opens['open']
     weekly_bench = merged.groupby(pd.Grouper(key = 'date', freq = 'W-MON'))['gain_benchmark'].sum().reset_index(drop = True)
-    weekly_bench.to_csv('weekly_benchmark.csv')
+    # weekly_bench.to_csv('weekly_benchmark.csv')
 
     plt.figure(figsize = (10,5))
     plot_melt = merged[['date', 'cumulative_benchmark', 'cumulative_trader']].melt('date', var_name = 'Legend', value_name = 'Ratio')

@@ -26,7 +26,7 @@ def select_factors():
         final_model = Lasso(alpha = alpha)
         final_model.fit(factor_pool[factor_cols], factor_pool['gain_next_sum'])
         long_term_factors_selected = set([factor_cols[i] for i in range(len(factor_cols)) if final_model.coef_[i] != 0])
-        if len(long_term_factors_selected) > 20:
+        if len(long_term_factors_selected) > 10:
             break
 
     # Short term (daily) regression
@@ -47,7 +47,7 @@ def select_factors():
         for i in range(len(factor_cols)):
             if nonzero_num[i] > threshold:
                 short_term_factors_selected.add(factor_cols[i])
-        if len(short_term_factors_selected) > 5:
+        if len(short_term_factors_selected) > 10:
             break
     
     # Long-short term Comparison
@@ -157,10 +157,7 @@ def reselect_factors():
     factor_regression_history()
 
 if __name__ == '__main__':
-    
-    # random.seed(4)
-    # stocks_tested = list(set(list(random_stocks(300)) + list(csi300_stocks())))
-    reselect_factors(20180101, stocks = csi300_stocks())
+    reselect_factors()
 
     # select_factors()
     # factor_regression_history()

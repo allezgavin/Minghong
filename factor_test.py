@@ -196,7 +196,7 @@ def HAlpha(df):
     # Alpha of every stock in the past 12 months.
     start_date = df['td'].min()
     df['td'] = df['td'].astype('str')
-    bench_df = query_SQL_csi300(start_date)[['td', 'gain']]
+    bench_df = query_SQL_csi300()[['td', 'gain']]
     bench_df.columns = ['td', 'gain_benchmark']
     df = pd.merge(df, bench_df, how = 'left', on = 'td')
     output = pd.Series(dtype='float64')
@@ -231,7 +231,7 @@ def beta_consistency(df):
     # beta times summed square of regression residuals.
     start_date = df['td'].min()
     df['td'] = df['td'].astype('str')
-    bench_df = query_SQL_csi300(start_date)[['td', 'gain']]
+    bench_df = query_SQL_csi300()[['td', 'gain']]
     bench_df.columns = ['td', 'gain_benchmark']
     df = pd.merge(df, bench_df, how = 'left', on = 'td')
     output = pd.Series(dtype='float64')
@@ -688,7 +688,7 @@ def group_backtest(factor_key, period = 1, divide_groups = 5, df = 'factors.csv'
     plt.show()
 
 def test_factor(factor_key, period = period):
-    df = calc_factors(factors = {factor_key: get_all_factors()[factor_key]}, stocks = stocks)
+    df = calc_factors(factors = {factor_key: get_all_factors()[factor_key]})
     IC_test(factor_key = factor_key, period = period, df = df)
     group_backtest(factor_key = factor_key, period = period, df = df)
 

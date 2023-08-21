@@ -8,53 +8,58 @@ from global_var import *
 solvers.options['show_progress'] = False
 
 def EWMA(time_series, halflife, step = 1):
-    time_series = time_series / 1 # Convert to float
+    
     if len(time_series.shape) == 2:
-        mat = pd.DataFrame(np.zeros_like(time_series)).reindex_like(time_series)
+        mat = pd.DataFrame(np.zeros_like(time_series), index = time_series.index, columns = time_series.columns)
         for j in range(mat.shape[1]):
             mat.iloc[:, j] = EWMA(time_series.iloc[:, j], halflife, step = step)
         return mat
+    
+    time_series = (time_series / 1).fillna(0) # Convert to float
 
     alpha = 1 - 2 ** (-1/halflife)
     ewma = np.zeros_like(time_series)  # Initialize with zeros of the same shape
     ewma[0:step] = time_series.iloc[0:step] * alpha  # First values
     
     for i in range(step, len(ewma)):
-        ewma[i] = (1 - alpha) * ewma[i-step] + alpha * time_series[i]
+        ewma[i] = (1 - alpha) * ewma[i-step] + alpha * time_series.iloc[i]
     
-    return pd.Series(ewma).reindex_like(time_series)
+    return ewma
 
 def EWMV(time_series, halflife, step = 1):
-    time_series = time_series / 1
+    
     if len(time_series.shape) == 2:
-        mat = pd.DataFrame(np.zeros_like(time_series)).reindex_like(time_series)
+        mat = pd.DataFrame(np.zeros_like(time_series), index = time_series.index, columns = time_series.columns)
         for j in range(mat.shape[1]):
             mat.iloc[:, j] = EWMV(time_series.iloc[:, j], halflife, step = step)
         return mat
+
+    time_series = (time_series / 1).fillna(0)
 
     alpha = 1 - 2 ** (-1/halflife)
     ewmv = np.zeros_like(time_series)  # Initialize with zeros of the same shape
     ewma_series = EWMA(time_series, halflife)
     
     for i in range(step, len(time_series)):
-        ewmv[i] = (1 - alpha) * ewmv[i-step] + alpha * (time_series[i] - ewma_series.iloc[i-step]) ** 2
+        ewmv[i] = (1 - alpha) * ewmv[i-step] + alpha * (time_series.iloc[i] - ewma_series[i-step]) ** 2
     
-    return pd.Series(ewmv).reindex_like(time_series)
+    return ewmv
 
 factors_selected = pd.read_csv('factors_selected.csv').fillna(0)
 factor_return = pd.read_csv('factor_return.csv', index_col = 'td')
-residual_df = pd.read_csv('residual.csv', index_col = 'td')
+residual_df = pd.read_csv('residual.csv')
 bench_weight = query_SQL_csi300_weight()
 industry_info = query_SQL_company().set_index('codenum')
-all_style_factors = get_style_factors().keys()
-all_alpha_factors = get_alpha_factors().keys()
+all_style_factors = ['factor_' + key for key in get_style_factors().keys()]
+all_alpha_factors = ['factor_' + key for key in get_alpha_factors().keys()]
 factor_cols = factors_selected.filter(like = 'factor_').columns.to_list()
 style_factor_cols = [style_factor for style_factor in factor_cols if style_factor in all_style_factors]
 alpha_factor_cols = [alpha_factor for alpha_factor in factor_cols if alpha_factor in all_alpha_factors]
-
+size_factor_col = ['factor_ln_market_cap']
 factor_return_pred = pd.concat([EWMA(factor_return[alpha_factor_cols], 36, step = period),
-                                EWMA(factor_return[style_factor_cols], 18, step = period)], axis = 1)[factor_cols]
-residual_var_pred = residual_df.groupby('codenum')['weight'].transform(EWMV, halflife=36, step=1) # Past 36 days (not 36 periods)
+                                EWMA(factor_return[style_factor_cols], 18, step = period),
+                                EWMA(factor_return[size_factor_col], 18, step = period)], axis = 1)[factor_cols]
+residual_df['residual_var_pred'] = residual_df.groupby('codenum')['residual'].transform(EWMV, halflife=36, step=1) # Past 36 days (not 36 periods)
 
 
 def set_variables(td = (datetime.datetime.now() + timedelta(days=1)).strftime('%Y%m%d')):
@@ -72,12 +77,12 @@ def set_variables(td = (datetime.datetime.now() + timedelta(days=1)).strftime('%
     Xa = X[alpha_factor_cols]
     Xb = X[style_factor_cols]
 
-    residual_var = residual_var_pred[residual_var_pred['td'] == td]
+    residual_var = residual_df[residual_df['td'] == td].set_index('codenum')['residual_var_pred']
     residual_var = residual_var.reindex(X.index).fillna(residual_var.mean())
-    Delta = np.diag(residual_var['residual'].values)
+    Delta = np.diag(residual_var.values)
 
-    expected_fa = factor_return_pred[factor_return_pred.index == td][alpha_factor_cols]
-    expected_fb = factor_return_pred[factor_return_pred.index == td][style_factor_cols]
+    expected_fa = factor_return_pred[factor_return_pred.index == td][alpha_factor_cols].T
+    expected_fb = factor_return_pred[factor_return_pred.index == td][style_factor_cols].T
 
     expected_Xf = Xa @ expected_fa + Xb @ expected_fb
 
@@ -156,7 +161,7 @@ def backtest_portfolio():
     exposure = pd.DataFrame(columns = ['td'] + factor_cols)
 
     with multiprocessing.Pool(processes=6) as pool:
-        results = pool.starmap(backtest_iteration, [(period, all_td[i * period]) for i in range(len(all_td) // period)])
+        results = pool.map(backtest_iteration, [all_td[i * period] for i in range(len(all_td) // period)])
     
     for i in range(len(results)):
         optimal_weight = results[i][0]
@@ -169,7 +174,8 @@ def backtest_portfolio():
             continue
 
         period_port = pd.DataFrame(columns = ['td', 'codenum', 'weight'])
-        period_port['td'] = [all_td[n + i * period] for n in range(period) for j in range(len(optimal_weight))]
+        # +1 day between optimization and purchase of the stock
+        period_port['td'] = [all_td[n + i * period] + 1 for n in range(period) for j in range(len(optimal_weight))]
         period_port['codenum'] = list(optimal_weight.index) * period
         period_port['weight'] = list(optimal_weight.values) * period
         portfolio = pd.concat([portfolio, period_port])
@@ -184,5 +190,5 @@ def backtest_portfolio():
     print('Backtest portofolio generated!')
 
 if __name__ == '__main__':
-    print(backtest_iteration(20,20230104).sort_values(ascending = False))
-    #backtest_portfolio(200, 20190101)
+    print(backtest_iteration(20230104)[0].sort_values(ascending = False))
+    # backtest_portfolio()
