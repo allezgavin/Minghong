@@ -31,8 +31,6 @@ class BacktestResult():
     def __str__(self):
         return f'Relative profit: {self.relative_profit}\nAlpha: {self.alpha}\nMax drawdown: {self.maximum_drawdown}\nIR: {self.info_ratio}\nTurnover ratio: {self.turnover}'
 
-
-
 def backtest(portfolio_or_pathfile, annual_interest_rate = 0.0165, bench = True):
     if type(portfolio_or_pathfile) == str:
         port = pd.read_csv(portfolio_or_pathfile)
@@ -99,10 +97,24 @@ def backtest(portfolio_or_pathfile, annual_interest_rate = 0.0165, bench = True)
     plt.savefig('backtest_result.png')
     plt.show()
 
+    plt.figure(figsize = (10,5))
+    plot_melt = merged[['date', 'cumulative_benchmark', 'cumulative_trader']].melt('date', var_name = 'Legend', value_name = 'Ratio')
+    sns.lineplot(x = 'date', y = 'Ratio', data = plot_melt, hue = 'Legend')
+    plt.yscale('log')
+    plt.savefig('backtest_result_log.png')
+    plt.show()
+
     merged['cumulative_hedge'] = merged['cumulative_trader'] - merged['cumulative_benchmark'] + 1
     plt.figure(figsize = (10,5))
     sns.lineplot(x = 'date', y = 'cumulative_hedge', data = merged)
     plt.savefig('backtest_hedge.png')
+    plt.show()
+
+    merged['cumulative_hedge'] = merged['cumulative_trader'] - merged['cumulative_benchmark'] + 1
+    plt.figure(figsize = (10,5))
+    sns.lineplot(x = 'date', y = 'cumulative_hedge', data = merged)
+    plt.yscale('log')
+    plt.savefig('backtest_hedge_log.png')
     plt.show()
 
     T = len(merged)
@@ -167,5 +179,5 @@ def random_portfolio(stock_num):
     print('Random portfolio generated!')
 
 if __name__ == '__main__':
-    random_portfolio(300)
-    backtest('random_portfolio.csv')
+    # random_portfolio(300)
+    backtest('backtest_portfolio.csv')
