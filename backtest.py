@@ -31,7 +31,7 @@ class BacktestResult():
     def __str__(self):
         return f'Relative profit: {self.relative_profit}\nAlpha: {self.alpha}\nMax drawdown: {self.maximum_drawdown}\nIR: {self.info_ratio}\nTurnover ratio: {self.turnover}'
 
-def backtest(portfolio_or_pathfile, annual_interest_rate = 0.0165, bench = True):
+def backtest(portfolio_or_pathfile, annual_interest_rate = 0.0165, transaction_fee = False):
     if type(portfolio_or_pathfile) == str:
         port = pd.read_csv(portfolio_or_pathfile)
     elif type(portfolio_or_pathfile) == pd.DataFrame:
@@ -40,6 +40,8 @@ def backtest(portfolio_or_pathfile, annual_interest_rate = 0.0165, bench = True)
         raise Exception('portfolio file type not supported! Please use .csv filepath or pd.DataFrame')
     port['td'] = port['td'].astype('str')
     port = port.sort_values('td', ascending = True)
+    
+    port['trans'] = port.groupby('codenum')['weight'].transform(lambda x: x - x.shift(1, fill_value = 0))
     turnover = port.groupby('codenum')['weight'].agg(lambda x: (x - x.shift(1, fill_value = 0)).abs().mean()/2).sum()
     
     df = query_SQL_market(indicators = ['open', 'close', 'chg'])
@@ -51,18 +53,16 @@ def backtest(portfolio_or_pathfile, annual_interest_rate = 0.0165, bench = True)
     df = pd.merge(df, port, how = 'left', on = ['td', 'codenum'])
     df.fillna(0, inplace = True)
 
-    df = df[['td', 'codenum', 'rise', 'weight']]
     df['gain'] = df['rise'] * df['weight']
-    gain_by_day = df.groupby('td').sum()['gain'].reset_index(drop=True)
-    
-    cumulative = (1 + gain_by_day).cumprod() / (1 + gain_by_day[0])
+
+    if transaction_fee:
+        df['gain'] = df['gain'] - df['trans'].abs() * transaction_fee
     
     day_total = pd.DataFrame()
     day_total['td'] = df['td'].unique()
     day_total['date'] = pd.to_datetime(day_total['td'], format = '%Y%m%d')
-    day_total.sort_values('date', ascending = True, inplace = True)
-    day_total['gain'] = gain_by_day
-    day_total['cumulative'] = cumulative
+    day_total['gain'] = df.groupby('td').sum()['gain'].reset_index(drop=True)
+    day_total['cumulative'] = (1 + day_total['gain']).cumprod() / (1 + day_total['gain'].iloc[0])
 
     bench = query_SQL_csi300()
 
@@ -180,4 +180,4 @@ def random_portfolio(stock_num):
 
 if __name__ == '__main__':
     # random_portfolio(300)
-    backtest('backtest_portfolio.csv')
+    print(backtest('backtest_portfolio.csv', transaction_fee = 0.001))
