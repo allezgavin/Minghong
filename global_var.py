@@ -103,30 +103,34 @@ def query_SQL_company():
     
     return pd.read_sql(query, mydb)
 
-def query_SQL_csi300():
-    query = f"SELECT td, close, chg / 100 AS gain FROM indexprice WHERE td BETWEEN {start_date} AND {end_date} and indexnum='000300.SH' ORDER BY td ASC"
+period = 1
+
+# indexcode = '000016.SH' # 上证50
+# indexcode = '000300.SH' # 上证300
+indexcode = '000905.SH' # 中证500
+# indexcode = '000852.SH' # 中证1000
+# indexcode = '932000.SH' # 中证2000
+# indexcode = '399006.SZ' # 创业板指
+# indexcode = '399296.SZ' # 创业板动量成长指数
+
+def query_SQL_indexprice():
+    query = f"SELECT td, close, chg / 100 AS gain FROM indexprice WHERE td BETWEEN {start_date} AND {end_date} and indexnum='{indexcode}' ORDER BY td ASC"
     df = pd.read_sql(query, mydb).dropna(subset = ['gain']).reset_index(drop = True)
     df['td'] = df['td'].astype('str')
     df['cumulative'] = df['close'] / df['close'][0]
 
     return df
 
-def query_SQL_csi300_weight():
-    bench_query = "SELECT td, code, weight / 100 AS weight FROM indexweight WHERE indexnum = '000300.SH';"
+def query_SQL_indexweight():
+    bench_query = f"SELECT td, code, weight / 100 AS weight FROM indexweight WHERE indexnum='{indexcode}';"
     return pd.read_sql(bench_query, mydb)
 
-def csi300_stocks():
-    # Returns all CSI300 index stocks, past and current.
-    return query_SQL_csi300_weight()['code'].unique()
+def index_stocks():
+    return query_SQL_indexweight()['code'].unique()
 
+stocks = index_stocks()
 
-
-
-period = 1
-
-stocks = csi300_stocks()
-
-start_date = 20150101
+start_date = 20200101
 end_date = int(datetime.date.today().strftime('%Y%m%d'))
 
 if end_date <= start_date:

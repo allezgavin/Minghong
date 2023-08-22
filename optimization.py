@@ -3,7 +3,7 @@ from factor_test import *
 from datetime import timedelta
 from scipy.stats import ttest_1samp
 from cvxopt import matrix, solvers
-from backtest import query_SQL_csi300_weight
+from backtest import query_SQL_indexweight
 from global_var import *
 solvers.options['show_progress'] = False
 
@@ -48,7 +48,7 @@ def EWMV(time_series, halflife, step = 1):
 factors_selected = pd.read_csv('factors_selected.csv').fillna(0)
 factor_return = pd.read_csv('factor_return.csv', index_col = 'td')
 residual_df = pd.read_csv('residual.csv')
-bench_weight = query_SQL_csi300_weight()
+bench_weight = query_SQL_indexweight()
 industry_info = query_SQL_company().set_index('codenum')
 all_style_factors = ['factor_' + key for key in get_style_factors().keys()]
 all_alpha_factors = ['factor_' + key for key in get_alpha_factors().keys()]

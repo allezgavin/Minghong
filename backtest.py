@@ -64,7 +64,7 @@ def backtest(portfolio_or_pathfile, annual_interest_rate = 0.0165, transaction_f
     day_total['gain'] = df.groupby('td').sum()['gain'].reset_index(drop=True)
     day_total['cumulative'] = (1 + day_total['gain']).cumprod() / (1 + day_total['gain'].iloc[0])
 
-    bench = query_SQL_csi300()
+    bench = query_SQL_indexprice()
 
     #how = 'inner' only keeps the rows that have matching dates in both dataframes!!!
     merged = day_total.merge(bench, how = 'left', on = 'td')
@@ -91,13 +91,13 @@ def backtest(portfolio_or_pathfile, annual_interest_rate = 0.0165, transaction_f
     weekly_bench = merged.groupby(pd.Grouper(key = 'date', freq = 'W-MON'))['gain_benchmark'].sum().reset_index(drop = True)
     # weekly_bench.to_csv('weekly_benchmark.csv')
 
-    plt.figure(figsize = (10,5))
+    plt.figure(figsize = (10, 5))
     plot_melt = merged[['date', 'cumulative_benchmark', 'cumulative_trader']].melt('date', var_name = 'Legend', value_name = 'Ratio')
     sns.lineplot(x = 'date', y = 'Ratio', data = plot_melt, hue = 'Legend')
     plt.savefig('backtest_result.png')
     plt.show()
 
-    plt.figure(figsize = (10,5))
+    plt.figure(figsize = (10, 5))
     plot_melt = merged[['date', 'cumulative_benchmark', 'cumulative_trader']].melt('date', var_name = 'Legend', value_name = 'Ratio')
     sns.lineplot(x = 'date', y = 'Ratio', data = plot_melt, hue = 'Legend')
     plt.yscale('log')
@@ -105,13 +105,13 @@ def backtest(portfolio_or_pathfile, annual_interest_rate = 0.0165, transaction_f
     plt.show()
 
     merged['cumulative_hedge'] = merged['cumulative_trader'] - merged['cumulative_benchmark'] + 1
-    plt.figure(figsize = (10,5))
+    plt.figure(figsize = (10, 5))
     sns.lineplot(x = 'date', y = 'cumulative_hedge', data = merged)
     plt.savefig('backtest_hedge.png')
     plt.show()
 
     merged['cumulative_hedge'] = merged['cumulative_trader'] - merged['cumulative_benchmark'] + 1
-    plt.figure(figsize = (10,5))
+    plt.figure(figsize = (10, 5))
     sns.lineplot(x = 'date', y = 'cumulative_hedge', data = merged)
     plt.yscale('log')
     plt.savefig('backtest_hedge_log.png')
@@ -178,6 +178,20 @@ def random_portfolio(stock_num):
     pd.DataFrame(random_port).to_csv('random_portfolio.csv', index = False)
     print('Random portfolio generated!')
 
+def show_factor_gain():
+    factor_exposure = pd.read_csv('backtest_exposure.csv', index_col='td')
+    factor_return = pd.read_csv('factor_return.csv', index_col='td').drop('intercept', axis = 1).loc[factor_exposure.index]
+    factor_gain = factor_exposure * factor_return
+    factor_gain = factor_gain.rolling(window = 20, min_periods = 20, method = 'table').sum(engine='numba')
+    factor_gain['Date'] = pd.to_datetime(factor_gain.index, format='%Y%m%d')
+    factor_gain = factor_gain.melt('Date', var_name='Factor', value_name='Monthly_gain')
+    plt.figure(figsize = (20, 8))
+    sns.lineplot(x = 'Date', y = 'Monthly_gain', data = factor_gain.iloc[::20], hue = 'Factor', alpha = 0.5)
+    plt.yscale('symlog') # To distinguish smaller values better
+    plt.savefig('backtest_factor_gain.png')
+    plt.show()
+
 if __name__ == '__main__':
     # random_portfolio(300)
-    print(backtest('backtest_portfolio.csv', transaction_fee = 0.001))
+    # print(backtest('backtest_portfolio.csv', transaction_fee = 0.001))
+    show_factor_gain()
