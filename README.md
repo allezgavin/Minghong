@@ -9,6 +9,8 @@ select_factors.py: Select factors with a loop, decolinearize them, and put them 
 
 optimization.py: Calculate the optimal portfolio for each day with quadratic programming.
 
+global_var.py: Sets global variables such as the stock pool, frequency of holding adjustments, database connection info, etc.
+
 注：股票涨幅命名为'gain'。股票涨幅定义为chg / 100.
 
 Notes on Aug 18, 2023

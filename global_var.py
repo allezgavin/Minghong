@@ -122,11 +122,11 @@ def csi300_stocks():
 
 
 
-period = 5
+period = 1
 
 stocks = csi300_stocks()
 
-start_date = 20190101
+start_date = 20150101
 end_date = int(datetime.date.today().strftime('%Y%m%d'))
 
 if end_date <= start_date:

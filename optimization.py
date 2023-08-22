@@ -113,7 +113,7 @@ def optimize(must_full = True):
 
     # Maximum beta factor exposure constraint
     G2 = np.vstack((Xb.T, -Xb.T))
-    h2 = np.ones((2 * Xa.shape[1], 1)) * x_b
+    h2 = np.ones((2 * Xb.shape[1], 1)) * x_b
 
     # Minimum weight constraint
     G3 = np.eye(X.shape[0]) * -1

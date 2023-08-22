@@ -9,7 +9,10 @@ from global_var import period
 
 def select_factors():
     factor_pool = pd.read_csv('factors.csv')
-    factor_cols = factor_pool.filter(like = 'factor_').columns
+    # factor_cols = factor_pool.filter(like = 'factor_').columns.to_list()
+    all_style_factors = ['factor_' + key for key in get_style_factors().keys()]
+    all_alpha_factors = ['factor_' + key for key in get_alpha_factors().keys()]
+    all_style_and_alpha_factors = all_style_factors + all_alpha_factors
     factor_pool['gain_next_sum'] = factor_pool.groupby('codenum')['gain_next'].transform(lambda x: x.rolling(window = period).sum().shift(-period+1))
 
     selected_td = factor_pool['td'].unique()[-390:] # past 1.5 years
@@ -24,8 +27,8 @@ def select_factors():
     for alpha in alpha_list:
         long_term_factors_selected = set()
         final_model = Lasso(alpha = alpha)
-        final_model.fit(factor_pool[factor_cols], factor_pool['gain_next_sum'])
-        long_term_factors_selected = set([factor_cols[i] for i in range(len(factor_cols)) if final_model.coef_[i] != 0])
+        final_model.fit(factor_pool[all_alpha_factors], factor_pool['gain_next_sum'])
+        long_term_factors_selected = set([all_alpha_factors[i] for i in range(len(all_alpha_factors)) if final_model.coef_[i] != 0])
         if len(long_term_factors_selected) > 10:
             break
 
@@ -34,31 +37,31 @@ def select_factors():
     selected_td = factor_pool['td'].unique()[-260:] # the past year
     factor_pool_recent = factor_pool[factor_pool['td'].isin(selected_td)]
 
-    alpha_list = np.logspace(0, -7, 20) * period ** 2
+    alpha_list = np.logspace(-3, -5, 20) * period ** 2
     for alpha in alpha_list:
         short_term_factors_selected = set()
-        short_term_regress_coef = np.array([0 for i in range(len(factor_cols))])
+        short_term_regress_coef = np.array([0 for i in range(len(all_style_and_alpha_factors))])
         for td, sub_df in factor_pool_recent.groupby('td'):
             final_model = Lasso(alpha = alpha)
-            final_model.fit(sub_df[factor_cols], sub_df['gain_next_sum'])
+            final_model.fit(sub_df[all_style_and_alpha_factors], sub_df['gain_next_sum'])
             short_term_regress_coef = np.vstack((short_term_regress_coef, final_model.coef_))
         threshold = 160 - period
         nonzero_num = np.count_nonzero(short_term_regress_coef, axis = 0)
-        for i in range(len(factor_cols)):
+        for i in range(len(all_style_and_alpha_factors)):
             if nonzero_num[i] > threshold:
-                short_term_factors_selected.add(factor_cols[i])
-        if len(short_term_factors_selected) > 10:
+                short_term_factors_selected.add(all_style_and_alpha_factors[i])
+        if len(short_term_factors_selected) > 15:
             break
     
     # Long-short term Comparison
     factors_selected = long_term_factors_selected.union(short_term_factors_selected)
     factors_selected.add('factor_ln_market_cap') # Must be included for market cap neutralization
     factors_selected = list(factors_selected)
-    print('All factors selected:', factors_selected)
-    print('Long-term factors - short-term factors:', long_term_factors_selected.difference(short_term_factors_selected))
-    print('Short-term factors - long-term factors:', short_term_factors_selected.difference(long_term_factors_selected))
-    print('Intersection:', long_term_factors_selected.intersection(short_term_factors_selected))
-    print('Maximum variance inflation factor:', max([variance_inflation_factor(factor_pool[factors_selected].values, i) for i in range(len(factors_selected))]))
+    print('\nAll factors selected:', factors_selected)
+    print('\nLong-term factors - short-term factors:', long_term_factors_selected.difference(short_term_factors_selected))
+    print('\nShort-term factors - long-term factors:', short_term_factors_selected.difference(long_term_factors_selected))
+    print('\nIntersection:', long_term_factors_selected.intersection(short_term_factors_selected))
+    print('\nMaximum variance inflation factor:', max([variance_inflation_factor(factor_pool[factors_selected].values, i) for i in range(len(factors_selected))]))
 
     # Write to file
     factor_pool = pd.read_csv('factors.csv')
@@ -157,7 +160,7 @@ def reselect_factors():
     factor_regression_history()
 
 if __name__ == '__main__':
-    reselect_factors()
+    #reselect_factors()
 
-    # select_factors()
-    # factor_regression_history()
+    select_factors()
+    factor_regression_history()
