@@ -56,14 +56,40 @@ def ts_min(x, d):
     output = pd.Series(dtype='float64')
     for indices in codenum_group.values():
         sub_x = x.loc[indices]
-        output = pd.concat([output, sub_x.rolling(window = d, min_periods = d).min()])
+        
+        window_min = sub_x.iloc[:d].min()
+        sub_output = [np.nan for i in range(d - 1)] + [window_min]
+        for i in range(d, len(indices)):
+            old = sub_x.iloc[i - d]
+            new = sub_x.iloc[i]
+            if old == window_min:
+                window_min = sub_x.iloc[i-d+1:i+1].min()
+            elif new < window_min:
+                window_min = new
+            sub_output.append(window_min)
+        sub_output = pd.Series(sub_output, index=sub_x.index)
+
+        output = pd.concat([output, sub_output])
     return output.reindex(x.index)
 
 def ts_max(x, d):
     output = pd.Series(dtype='float64')
     for indices in codenum_group.values():
         sub_x = x.loc[indices]
-        output = pd.concat([output, sub_x.rolling(window = d, min_periods = d).max()])
+        
+        window_max = sub_x.iloc[:d].max()
+        sub_output = [np.nan for i in range(d - 1)] + [window_max]
+        for i in range(d, len(indices)):
+            old = sub_x.iloc[i - d]
+            new = sub_x.iloc[i]
+            if old == window_max:
+                window_max = sub_x.iloc[i-d+1:i+1].max()
+            elif new < window_max:
+                window_max = new
+            sub_output.append(window_max)
+        sub_output = pd.Series(sub_output, index=sub_x.index)
+
+        output = pd.concat([output, sub_output])
     return output.reindex(x.index)
 
 def ts_std(x, d):
@@ -516,10 +542,15 @@ def calc_factors(factors = {}):
                 else:
                     raise Exception(f'"{indicator}" does not exist in finance, finance_deriv or market tables!')
 
+    print('Querying finance table...')
     finance_df = query_SQL_finance(factors = fin_ind)
+    print('Querying finance_deriv table...')
     finance_deriv_df = query_SQL_finance_deriv(factors = fin_deriv_ind)
+    print('Querying market table...')
     market_df = query_SQL_market(indicators = market_ind)
+    print('Querying company table...')
     company_df = query_SQL_company()
+    print('Queries finished!')
 
     finance_merged = pd.merge(finance_df, finance_deriv_df, how = 'inner', on = ['fd', 'disclosure', 'codenum'])
 
@@ -592,7 +623,7 @@ def calc_factors(factors = {}):
 
     return merged_df
 
-def IC_test(factor_key = '', period = 1, df = 'factors.csv'):
+def IC_test(factor_key = '', period = period, df = 'factors.csv'):
     if type(df) == str:
         factor_pool = pd.read_csv(df)
     else:
@@ -628,20 +659,15 @@ def IC_test(factor_key = '', period = 1, df = 'factors.csv'):
         sns.barplot(x = 'year_month', y = IC_factor, data = monthly_mean)
         plt.savefig('IC_test.png')
         plt.show()
-    else:
-        IC_series.to_csv(f'IC_period_{period}.csv', index = False)
-        return IR
+    return IC_series, IR
 
 def IR_test(factor_key = '', periods = [1,2,3,5,10,20,40], df = 'factors.csv'):
     IR_df = pd.DataFrame()
-    for period in periods:
+    for elem in periods:
         print('Calculating data with period length', period)
-        IR = IC_test(factor_key=factor_key, period=period, df = df)
+        IR = IC_test(factor_key=factor_key, period=elem, df = df)[1]
         IR_df = pd.concat([IR_df, IR], axis = 1)
-    if factor_key == '':
-        IR_df.to_csv('IR.csv')
-    else:
-        print(IR_df)
+    return IR_df
 
 def group_backtest(factor_key, period = 1, divide_groups = 5, df = 'factors.csv'):
     factor_name = 'factor_' + factor_key
@@ -694,4 +720,5 @@ def test_factor(factor_key, period = period):
 
 if __name__ == '__main__':
 
-    test_factor('financial_leverage', period = 1)
+    #test_factor('financial_leverage', period = 1)
+    IC_test()

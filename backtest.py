@@ -38,6 +38,16 @@ def backtest(portfolio_or_pathfile, annual_interest_rate = 0.0165, transaction_f
         port = portfolio_or_pathfile
     else:
         raise Exception('portfolio file type not supported! Please use .csv filepath or pd.DataFrame')
+    
+    # Get all unique 'td' and 'codenum' values
+    all_td_values = port['td'].unique()
+    all_codenum_values = port['codenum'].unique()
+    # Create a DataFrame with all possible combinations of 'td' and 'codenum'
+    all_combinations = pd.DataFrame([(td, codenum) for td in all_td_values for codenum in all_codenum_values], columns=['td', 'codenum'])
+    # Merge the original DataFrame with the new combinations DataFrame and fill missing values with 0
+    port = pd.merge(all_combinations, port, on=['td', 'codenum'], how='left').fillna(0)
+    print(port)
+
     port['td'] = port['td'].astype('str')
     port = port.sort_values('td', ascending = True)
     
@@ -178,11 +188,13 @@ def random_portfolio(stock_num):
     pd.DataFrame(random_port).to_csv('random_portfolio.csv', index = False)
     print('Random portfolio generated!')
 
-def show_factor_gain():
+def show_factor_gain(num_shown = 8):
     factor_exposure = pd.read_csv('backtest_exposure.csv', index_col='td')
     factor_return = pd.read_csv('factor_return.csv', index_col='td').drop('intercept', axis = 1).loc[factor_exposure.index]
     factor_gain = factor_exposure * factor_return
     factor_gain = factor_gain.rolling(window = 20, min_periods = 20, method = 'table').sum(engine='numba')
+    max_values = factor_gain.max().sort_values(ascending=False)[:num_shown]
+    factor_gain = factor_gain[max_values.index]
     factor_gain['Date'] = pd.to_datetime(factor_gain.index, format='%Y%m%d')
     factor_gain = factor_gain.melt('Date', var_name='Factor', value_name='Monthly_gain')
     plt.figure(figsize = (20, 8))
@@ -193,5 +205,5 @@ def show_factor_gain():
 
 if __name__ == '__main__':
     # random_portfolio(300)
-    # print(backtest('backtest_portfolio.csv', transaction_fee = 0.001))
+    print(backtest('backtest_portfolio.csv', transaction_fee = 0.0005))
     show_factor_gain()

@@ -6,7 +6,7 @@ import warnings
 warnings.filterwarnings("ignore", category=UserWarning, message="pandas only supports SQLAlchemy connectable")
 warnings.filterwarnings("ignore", category=UserWarning, message="The default dtype for empty Series will be 'object'")
 
-local = False
+local = True
 
 if local:
     mydb = mysql.connector.connect(
@@ -130,7 +130,7 @@ def index_stocks():
 
 stocks = index_stocks()
 
-start_date = 20200101
+start_date = 20150101
 end_date = int(datetime.date.today().strftime('%Y%m%d'))
 
 if end_date <= start_date:
@@ -139,6 +139,5 @@ if start_date < 20020101:
     raise Exception('start_date too early!')
 
 if __name__ == '__main__':
-    print(query_SQL_finance_deriv())
     pass
 

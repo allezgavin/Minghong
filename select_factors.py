@@ -136,13 +136,17 @@ def factor_regression_history(factors_selected = 'factors_selected.csv'):
     p = factor_return_df.shape[0] * factor_return_df.shape[1]
     adjusted_r2 = 1-(1-r2)*(n-1)/(n-p-1)
     print('Adjusted r-squared:', adjusted_r2)
-
+    
     if to_csv:
         factor_return_df.replace(0, np.nan).to_csv('factor_return.csv', index = False)
         print('factor_return.csv created!')
 
         residual_df.to_csv('residual.csv', index = False)
         print('residual.csv created!')
+        
+        print('Calculating IC series...')
+        IC_series = IC_test()[0].set_index('td')
+        IC_series.to_csv('IC_series.csv')
 
     else:
         return factor_return_df
