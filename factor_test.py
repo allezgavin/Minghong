@@ -275,11 +275,11 @@ def beta_consistency(df):
 
 def get_volatility_factors():
     volatility_factors = {}
-    volatility_factors['high_low_1m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 1 * 21) / ts_max(df['low'], 1 * 21)}
-    volatility_factors['high_low_2m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 2 * 21) / ts_max(df['low'], 2 * 21)}
-    volatility_factors['high_low_3m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 3 * 21) / ts_max(df['low'], 3 * 21)}
-    volatility_factors['high_low_6m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 6 * 21) / ts_max(df['low'], 6 * 21)}
-    volatility_factors['high_low_12m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 12 * 21) / ts_max(df['low'], 12 * 21)}
+    volatility_factors['high_low_1m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 1 * 21) / ts_min(df['low'], 1 * 21)}
+    volatility_factors['high_low_2m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 2 * 21) / ts_min(df['low'], 2 * 21)}
+    volatility_factors['high_low_3m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 3 * 21) / ts_min(df['low'], 3 * 21)}
+    volatility_factors['high_low_6m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 6 * 21) / ts_min(df['low'], 6 * 21)}
+    volatility_factors['high_low_12m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 12 * 21) / ts_min(df['low'], 12 * 21)}
     volatility_factors['std_1m'] = {'indicators': ['high'], 'function': lambda df: ts_std(df['high'], 1 * 21)}
     volatility_factors['std_2m'] = {'indicators': ['high'], 'function': lambda df: ts_std(df['high'], 2 * 21)}
     volatility_factors['std_3m'] = {'indicators': ['high'], 'function': lambda df: ts_std(df['high'], 3 * 21)}
@@ -720,5 +720,5 @@ def test_factor(factor_key, period = period):
 
 if __name__ == '__main__':
 
-    #test_factor('financial_leverage', period = 1)
-    IC_test()
+    test_factor('high_low_6m', period = 1)
+    # IC_test()
