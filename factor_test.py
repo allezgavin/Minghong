@@ -516,13 +516,13 @@ def calc_factors(factors = {}):
         to_csv = False
 
     #Get columns of finance table
-    query = f"SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'astocks' AND TABLE_NAME = 'finance';"
+    query = f"SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '{schema_name}' AND TABLE_NAME = 'finance';"
     finance_columns = pd.read_sql(query, mydb)
     #Get columns of finance_deriv table
-    query = f"SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'astocks' AND TABLE_NAME = 'finance_deriv';"
+    query = f"SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '{schema_name}' AND TABLE_NAME = 'finance_deriv';"
     finance_deriv_columns = pd.read_sql(query, mydb)
     #Get columns of market table
-    query = f"SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'astocks' AND TABLE_NAME = 'market';"
+    query = f"SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '{schema_name}' AND TABLE_NAME = 'market';"
     market_columns = pd.read_sql(query, mydb)
 
     fin_ind = set()

@@ -9,18 +9,20 @@ warnings.filterwarnings("ignore", category=UserWarning, message="The default dty
 local = True
 
 if local:
+    schema_name = "Minghong"
     mydb = mysql.connector.connect(
         host="127.0.0.1",
         user="root",
         password="20040203",
-        database="Minghong"
+        database=schema_name
         )
 else:
+    schema_name = "astocks"
     mydb = mysql.connector.connect(
         host="172.31.50.91",
         user="guest",
         password="MH#123456",
-        database="astocks"
+        database=schema_name
         )
 
 
@@ -141,3 +143,7 @@ if start_date < 20020101:
 if __name__ == '__main__':
     pass
 
+qp_size = 450
+max_alpha_exposure = 1
+max_style_exposure = 0.2
+risk_coef = 5
