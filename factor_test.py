@@ -52,45 +52,61 @@ def ts_rank(x, d):
         output = pd.concat([output, sub_x.rolling(window = d, min_periods = d).apply(lambda x: (x.argsort().argsort().iloc[-1] + 1), raw=False)])
     return output.reindex(x.index)
 
-def ts_min(x, d):
+def ts_min(x, d, method = 'rolling'):
     output = pd.Series(dtype='float64')
-    for indices in codenum_group.values():
-        sub_x = x.loc[indices]
-        
-        window_min = sub_x.iloc[:d].min()
-        sub_output = [np.nan for i in range(d - 1)] + [window_min]
-        for i in range(d, len(indices)):
-            old = sub_x.iloc[i - d]
-            new = sub_x.iloc[i]
-            if old == window_min:
-                window_min = sub_x.iloc[i-d+1:i+1].min()
-            elif new < window_min:
-                window_min = new
-            sub_output.append(window_min)
-        sub_output = pd.Series(sub_output, index=sub_x.index)
 
-        output = pd.concat([output, sub_output])
-    return output.reindex(x.index)
+    if method == 'rolling':
+        for indices in codenum_group.values():
+            sub_x = x.loc[indices]
+            output = pd.concat([output, sub_x.rolling(window = d, min_periods = d).min()])
+        return output.reindex(x.index)
 
-def ts_max(x, d):
+    else:
+        for indices in codenum_group.values():
+            sub_x = x.loc[indices]
+            
+            window_min = sub_x.iloc[:d].min()
+            sub_output = [np.nan for i in range(d - 1)] + [window_min]
+            for i in range(d, len(indices)):
+                old = sub_x.iloc[i - d]
+                new = sub_x.iloc[i]
+                if old == window_min:
+                    window_min = sub_x.iloc[i-d+1:i+1].min()
+                elif new < window_min:
+                    window_min = new
+                sub_output.append(window_min)
+            sub_output = pd.Series(sub_output, index=sub_x.index)
+
+            output = pd.concat([output, sub_output])
+        return output.reindex(x.index)
+
+def ts_max(x, d, method = 'rolling'):
     output = pd.Series(dtype='float64')
-    for indices in codenum_group.values():
-        sub_x = x.loc[indices]
-        
-        window_max = sub_x.iloc[:d].max()
-        sub_output = [np.nan for i in range(d - 1)] + [window_max]
-        for i in range(d, len(indices)):
-            old = sub_x.iloc[i - d]
-            new = sub_x.iloc[i]
-            if old == window_max:
-                window_max = sub_x.iloc[i-d+1:i+1].max()
-            elif new < window_max:
-                window_max = new
-            sub_output.append(window_max)
-        sub_output = pd.Series(sub_output, index=sub_x.index)
 
-        output = pd.concat([output, sub_output])
-    return output.reindex(x.index)
+    if method == 'rolling':
+        for indices in codenum_group.values():
+            sub_x = x.loc[indices]
+            output = pd.concat([output, sub_x.rolling(window = d, min_periods = d).max()])
+        return output.reindex(x.index)
+    
+    else:
+        for indices in codenum_group.values():
+            sub_x = x.loc[indices]
+            
+            window_max = sub_x.iloc[:d].max()
+            sub_output = [np.nan for i in range(d - 1)] + [window_max]
+            for i in range(d, len(indices)):
+                old = sub_x.iloc[i - d]
+                new = sub_x.iloc[i]
+                if old == window_max:
+                    window_max = sub_x.iloc[i-d+1:i+1].max()
+                elif new < window_max:
+                    window_max = new
+                sub_output.append(window_max)
+            sub_output = pd.Series(sub_output, index=sub_x.index)
+
+            output = pd.concat([output, sub_output])
+        return output.reindex(x.index)
 
 def ts_std(x, d):
     output = pd.Series(dtype='float64')
@@ -275,11 +291,11 @@ def beta_consistency(df):
 
 def get_volatility_factors():
     volatility_factors = {}
-    volatility_factors['high_low_1m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 1 * 21) / ts_min(df['low'], 1 * 21)}
-    volatility_factors['high_low_2m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 2 * 21) / ts_min(df['low'], 2 * 21)}
-    volatility_factors['high_low_3m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 3 * 21) / ts_min(df['low'], 3 * 21)}
-    volatility_factors['high_low_6m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 6 * 21) / ts_min(df['low'], 6 * 21)}
-    volatility_factors['high_low_12m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 12 * 21) / ts_min(df['low'], 12 * 21)}
+    volatility_factors['high_low_1m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 1 * 21, method = 'loop') / ts_min(df['low'], 1 * 21, method = 'loop')}
+    volatility_factors['high_low_2m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 2 * 21, method = 'loop') / ts_min(df['low'], 2 * 21, method = 'loop')}
+    volatility_factors['high_low_3m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 3 * 21, method = 'loop') / ts_min(df['low'], 3 * 21, method = 'loop')}
+    volatility_factors['high_low_6m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 6 * 21, method = 'loop') / ts_min(df['low'], 6 * 21, method = 'loop')}
+    volatility_factors['high_low_12m'] = {'indicators': ['high', 'low'], 'function': lambda df: ts_max(df['high'], 12 * 21, method = 'loop') / ts_min(df['low'], 12 * 21, method = 'loop')}
     volatility_factors['std_1m'] = {'indicators': ['high'], 'function': lambda df: ts_std(df['high'], 1 * 21)}
     volatility_factors['std_2m'] = {'indicators': ['high'], 'function': lambda df: ts_std(df['high'], 2 * 21)}
     volatility_factors['std_3m'] = {'indicators': ['high'], 'function': lambda df: ts_std(df['high'], 3 * 21)}
@@ -720,5 +736,5 @@ def test_factor(factor_key, period = period):
 
 if __name__ == '__main__':
 
-    test_factor('high_low_6m', period = 1)
+    test_factor('WQ009', period = 1)
     # IC_test()
