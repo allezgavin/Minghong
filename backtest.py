@@ -31,7 +31,7 @@ class BacktestResult():
     def __str__(self):
         return f'Relative profit: {self.relative_profit}\nAlpha: {self.alpha}\nMax drawdown: {self.maximum_drawdown}\nIR: {self.info_ratio}\nTurnover ratio: {self.turnover}'
 
-def backtest(portfolio_or_pathfile, annual_interest_rate = 0.0165, transaction_fee = False):
+def backtest(portfolio_or_pathfile, annual_interest_rate = 0.0165, transaction_fee = False, fig = True):
     if type(portfolio_or_pathfile) == str:
         port = pd.read_csv(portfolio_or_pathfile)
     elif type(portfolio_or_pathfile) == pd.DataFrame:
@@ -46,7 +46,6 @@ def backtest(portfolio_or_pathfile, annual_interest_rate = 0.0165, transaction_f
     all_combinations = pd.DataFrame([(td, codenum) for td in all_td_values for codenum in all_codenum_values], columns=['td', 'codenum'])
     # Merge the original DataFrame with the new combinations DataFrame and fill missing values with 0
     port = pd.merge(all_combinations, port, on=['td', 'codenum'], how='left').fillna(0)
-    print(port)
 
     port['td'] = port['td'].astype('str')
     port = port.sort_values('td', ascending = True)
@@ -68,6 +67,8 @@ def backtest(portfolio_or_pathfile, annual_interest_rate = 0.0165, transaction_f
     if transaction_fee:
         df['gain'] = df['gain'] - df['trans'].abs() * transaction_fee
     
+    # df.to_csv('backtest_details.csv', index = False)
+
     day_total = pd.DataFrame()
     day_total['td'] = df['td'].unique()
     day_total['date'] = pd.to_datetime(day_total['td'], format = '%Y%m%d')
@@ -80,6 +81,7 @@ def backtest(portfolio_or_pathfile, annual_interest_rate = 0.0165, transaction_f
     merged = day_total.merge(bench, how = 'left', on = 'td')
     merged.columns = ['td', 'date', 'gain_trader', 'cumulative_trader', 'indexprice', 'gain_benchmark', 'cumulative_benchmark']
     merged['cumulative_benchmark'] = merged['cumulative_benchmark'] / merged['cumulative_benchmark'].iloc[0]
+    merged['cumulative_hedge'] = merged['cumulative_trader'] - merged['cumulative_benchmark'] + 1
     merged.set_index('td', inplace = True)
 
     if len(merged) < len(bench):
@@ -101,31 +103,30 @@ def backtest(portfolio_or_pathfile, annual_interest_rate = 0.0165, transaction_f
     weekly_bench = merged.groupby(pd.Grouper(key = 'date', freq = 'W-MON'))['gain_benchmark'].sum().reset_index(drop = True)
     # weekly_bench.to_csv('weekly_benchmark.csv')
 
-    plt.figure(figsize = (10, 5))
-    plot_melt = merged[['date', 'cumulative_benchmark', 'cumulative_trader']].melt('date', var_name = 'Legend', value_name = 'Ratio')
-    sns.lineplot(x = 'date', y = 'Ratio', data = plot_melt, hue = 'Legend')
-    plt.savefig('backtest_result.png')
-    plt.show()
+    if fig:
+        plt.figure(figsize = (10, 5))
+        plot_melt = merged[['date', 'cumulative_benchmark', 'cumulative_trader']].melt('date', var_name = 'Legend', value_name = 'Ratio')
+        sns.lineplot(x = 'date', y = 'Ratio', data = plot_melt, hue = 'Legend')
+        plt.savefig('backtest_result.png')
+        plt.show()
 
-    plt.figure(figsize = (10, 5))
-    plot_melt = merged[['date', 'cumulative_benchmark', 'cumulative_trader']].melt('date', var_name = 'Legend', value_name = 'Ratio')
-    sns.lineplot(x = 'date', y = 'Ratio', data = plot_melt, hue = 'Legend')
-    plt.yscale('log')
-    plt.savefig('backtest_result_log.png')
-    plt.show()
+        plt.figure(figsize = (10, 5))
+        plot_melt = merged[['date', 'cumulative_benchmark', 'cumulative_trader']].melt('date', var_name = 'Legend', value_name = 'Ratio')
+        sns.lineplot(x = 'date', y = 'Ratio', data = plot_melt, hue = 'Legend')
+        plt.yscale('log')
+        plt.savefig('backtest_result_log.png')
+        plt.show()
 
-    merged['cumulative_hedge'] = merged['cumulative_trader'] - merged['cumulative_benchmark'] + 1
-    plt.figure(figsize = (10, 5))
-    sns.lineplot(x = 'date', y = 'cumulative_hedge', data = merged)
-    plt.savefig('backtest_hedge.png')
-    plt.show()
+        plt.figure(figsize = (10, 5))
+        sns.lineplot(x = 'date', y = 'cumulative_hedge', data = merged)
+        plt.savefig('backtest_hedge.png')
+        plt.show()
 
-    merged['cumulative_hedge'] = merged['cumulative_trader'] - merged['cumulative_benchmark'] + 1
-    plt.figure(figsize = (10, 5))
-    sns.lineplot(x = 'date', y = 'cumulative_hedge', data = merged)
-    plt.yscale('log')
-    plt.savefig('backtest_hedge_log.png')
-    plt.show()
+        plt.figure(figsize = (10, 5))
+        sns.lineplot(x = 'date', y = 'cumulative_hedge', data = merged)
+        plt.yscale('log')
+        plt.savefig('backtest_hedge_log.png')
+        plt.show()
 
     T = len(merged)
     annual_profit = merged['cumulative_trader'].iloc[-1] ** (260 / T) - 1
@@ -173,6 +174,7 @@ def backtest(portfolio_or_pathfile, annual_interest_rate = 0.0165, transaction_f
     R_squared = merged['gain_trader'].corr(merged['gain_benchmark']) ** 2
     semivar = np.std(merged['gain_trader'][merged['gain_trader'] < 0])
 
+    # merged.to_csv('backtest_merged.csv', index = False)
     return BacktestResult(annual_profit, benchmark_annual_profit, relative_profit, beta, win_loss_ratio, risk_return_ratio, alpha, downside_risk,
                           info_ratio, track_error, jensen, max_drawdown, sharpe, sortino, treynor, volatility, R_squared, semivar, turnover)
 
@@ -205,5 +207,5 @@ def show_factor_gain(num_shown = 8):
 
 if __name__ == '__main__':
     # random_portfolio(300)
-    print(backtest('backtest_portfolio.csv', transaction_fee = 0.0005))
+    print(backtest('backtest_portfolio.csv', transaction_fee = False))
     show_factor_gain()
