@@ -80,7 +80,7 @@ IC_pred = pd.concat([EWMA(IC_series[alpha_factor_cols], 36, step = period),
 print('Tables all set!')
 
 def set_variables(td = (datetime.datetime.now() + timedelta(days=1)).strftime('%Y%m%d')):
-    global X, Xa, Xb, Xs, expected_Xf, F, V, p_B, S, sub_rows
+    global X, Xa, Xb, Xs, expected_Xf, F, V, p_B, S, sub_rows, stock_num
 
     bench_td_max = bench_weight[bench_weight['td'] <= td]['td'].max()
     concurrent_bench_weight = bench_weight[bench_weight['td'] == bench_td_max]
@@ -99,6 +99,7 @@ def set_variables(td = (datetime.datetime.now() + timedelta(days=1)).strftime('%
     X = X.fillna(0)
 
     sub_rows = (X @ IC_pred[td]).sort_values(ascending = False).iloc[:qp_size].index
+    stock_num = len(sub_rows) # May differ from qp_size if qp_size is large
 
     Xa = X[alpha_factor_cols]
     Xb = X[style_factor_cols]
@@ -150,8 +151,8 @@ def optimize(k, x_a, x_b, must_full = True, loose = True):
     h2 = np.ones((2 * Xb.shape[1], 1)) * x_b + np.concatenate([bench_style_exposure, -bench_style_exposure]).reshape(-1,1)
 
     # Minimum weight constraint
-    G3 = np.eye(qp_size) * -1
-    h3 = np.zeros((qp_size, 1))
+    G3 = np.eye(stock_num) * -1
+    h3 = np.zeros((stock_num, 1))
 
     G = matrix(np.vstack((G1, G2, G3)))
     h = matrix(np.vstack((h1, h2, h3)))
@@ -174,7 +175,7 @@ def optimize(k, x_a, x_b, must_full = True, loose = True):
 
     # Weight sum constraint
     if must_full:
-        A3 = np.ones((1, qp_size))
+        A3 = np.ones((1, stock_num))
         b3 = np.ones((1, 1))
         A = matrix(np.vstack((A, A3)))
         b = matrix(np.vstack((b, b3)))
@@ -189,7 +190,7 @@ def optimize(k, x_a, x_b, must_full = True, loose = True):
             raise Exception('QP failed! Consider using loose=True')
 
     optimal_weight = pd.Series(data = sol['x'], index = sub_rows)
-    optimal_weight[optimal_weight < (0.01 / qp_size)] = 0
+    optimal_weight[optimal_weight < (0.01 / stock_num)] = 0
 
     optimal_excess_exposure = X.loc[sub_rows].T @ optimal_weight - X.T @ p_B
 
@@ -254,7 +255,7 @@ def param_search(control = True):
     # k_range = np.logspace(-1, 2, 5)
     x_a_range = np.array([])
     x_b_range = np.array([])
-    k_range = np.logspace(-3, 1.5, 15)
+    k_range = np.logspace(-1, 1.5, 5)
     x_a_range = np.unique(np.append(x_a_range, max_alpha_exposure))
     x_b_range = np.unique(np.append(x_b_range, max_style_exposure))
     k_range = np.unique(np.append(k_range, risk_coef))
@@ -279,7 +280,7 @@ def param_search(control = True):
 
 if __name__ == '__main__':
     # set_variables(td = 20160729)
-    # for each in [X, Xa, Xb, Xs, expected_Xf, F, V, p_B, S, sub_rows, qp_size]:
+    # for each in [X, Xa, Xb, Xs, expected_Xf, F, V, p_B, S, sub_rows, stock_num]:
     #     print(each)
 
     # t = backtest_iteration(20160729)

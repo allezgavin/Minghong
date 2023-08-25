@@ -565,6 +565,8 @@ def calc_factors(factors = {}):
     market_df = query_SQL_market(indicators = market_ind)
     print('Querying company table...')
     company_df = query_SQL_company()
+    print('Querying indexprice table')
+    indexprice_df = query_SQL_indexprice()[['td', 'gain']].rename(columns={'gain': 'index_gain'})
     print('Queries finished!')
 
     finance_merged = pd.merge(finance_df, finance_deriv_df, how = 'inner', on = ['fd', 'disclosure', 'codenum'])
@@ -573,6 +575,9 @@ def calc_factors(factors = {}):
     merged_df = pd.merge_asof(market_df, finance_merged, left_on = 'td', right_on = 'disclosure', by = 'codenum', direction = 'backward')
     merged_df = pd.merge(merged_df, company_df, how = 'inner', on = 'codenum')
     merged_df['gain'] = (merged_df['chg']) / 100
+    indexprice_df['td'] = indexprice_df['td'].astype(int)
+    merged_df = pd.merge(merged_df, indexprice_df, on = 'td')
+    merged_df['excess_gain'] = merged_df['gain'] - merged_df['index_gain']
     merged_df['ln_market_cap'] = np.log(merged_df['market_cap'])
 
     # Get indices of td and codenum groups
@@ -624,18 +629,18 @@ def calc_factors(factors = {}):
 
         merged_df = merged_df.copy()
     
-    merged_df = merged_df[['td', 'codenum', 'gain'] + factor_cols]
+    merged_df['gain_next'] = merged_df.groupby('codenum')['gain'].shift(-1)
+    merged_df['excess_gain_next'] = merged_df.groupby('codenum')['excess_gain'].shift(-1)
+    merged_df = merged_df[['td', 'codenum', 'gain', 'gain_next', 'excess_gain', 'excess_gain_next'] + factor_cols]
 
     print('Null value counts:')
     print(merged_df.isnull().sum())
-
-    merged_df = merged_df.sort_values('td') # Ensures it is sorted by td
-    merged_df['gain_next'] = merged_df.groupby('codenum')['gain'].shift(-1)
 
     if to_csv:
         merged_df.to_csv('factors.csv', index = False)
         print('All factors calculated!')
 
+    print(merged_df)
     return merged_df
 
 def IC_test(factor_key = '', period = period, df = 'factors.csv'):
@@ -644,17 +649,17 @@ def IC_test(factor_key = '', period = period, df = 'factors.csv'):
     else:
         factor_pool = df
     if factor_key != '':
-        factor_pool = factor_pool[['td', 'codenum', 'gain_next', 'factor_' + factor_key]]
+        factor_pool = factor_pool[['td', 'codenum', 'excess_gain_next', 'factor_' + factor_key]]
     factor_cols = factor_pool.filter(like = 'factor_').columns.to_list()
     sub_dfs = []
     for stock, sub_df in factor_pool.groupby('codenum'):
-        sub_df['gain_next_mean'] = sub_df['gain_next'].rolling(window = period).mean().shift(-period+1)
+        sub_df['excess_gain_next_mean'] = sub_df['excess_gain_next'].rolling(window = period).mean().shift(-period+1)
         sub_dfs.append(sub_df)
     factor_pool = pd.concat(sub_dfs)
     IC_series = []
     td_index = []
     for td, sub_df in factor_pool.groupby('td'):
-        IC = sub_df[factor_cols].corrwith(sub_df['gain_next_mean'])
+        IC = sub_df[factor_cols].corrwith(sub_df['excess_gain_next_mean'])
         IC_series.append(IC)
         td_index.append(td)
     IC_series = pd.DataFrame(data = IC_series, index = td_index)
@@ -690,10 +695,10 @@ def group_backtest(factor_key, period = 1, divide_groups = 5, df = 'factors.csv'
         factor_pool = pd.read_csv(df)
     else:
         factor_pool = df
-    factor_pool = factor_pool[['td', 'codenum', 'gain_next'] + [factor_name]]
+    factor_pool = factor_pool[['td', 'codenum', 'excess_gain_next'] + [factor_name]]
     sub_dfs = []
     for stock, sub_df in factor_pool.groupby('codenum'):
-        sub_df['gain_next_mean'] = sub_df['gain_next'].rolling(window = period).mean().shift(-period + 1)
+        sub_df['excess_gain_next_mean'] = sub_df['excess_gain_next'].rolling(window = period).mean().shift(-period + 1)
         sub_df = sub_df.iloc[-1::-period].iloc[::-1]
         sub_dfs.append(sub_df)
     factor_pool = pd.concat(sub_dfs)
@@ -710,7 +715,7 @@ def group_backtest(factor_key, period = 1, divide_groups = 5, df = 'factors.csv'
     result = pd.DataFrame()
     annual_profits = []
     for group, sub_df in group_merged_df.groupby('group'):
-        avg_profit = sub_df.groupby('td')['gain_next_mean'].mean()
+        avg_profit = sub_df.groupby('td')['excess_gain_next_mean'].mean()
         group_result = pd.DataFrame()
         group_result['date'] = pd.to_datetime(avg_profit.index, format = '%Y%m%d')
         group_result['avg_profit'] = list(avg_profit)
@@ -722,7 +727,7 @@ def group_backtest(factor_key, period = 1, divide_groups = 5, df = 'factors.csv'
     
     result.reset_index(drop = True, inplace= True)
 
-    print(f'Annual profits of Groups starting from Group 1 (greatest factor value) are {annual_profits}')
+    print(f'Annual excess profit of Groups starting from Group 1 (greatest factor value) are {annual_profits}')
     plt.figure(figsize = (10, 5))
     sns.lineplot(x = 'date', y = 'cumulative_profit', data = result, hue = 'group')
     plt.savefig('grouped_backtest.png')
@@ -734,6 +739,5 @@ def test_factor(factor_key, period = period):
     group_backtest(factor_key = factor_key, period = period, df = df)
 
 if __name__ == '__main__':
-
-    test_factor('WQ009', period = 1)
+    test_factor('vp_chg_div', period = 1)
     # IC_test()

@@ -143,10 +143,10 @@ if end_date <= start_date:
 if start_date < 20020101:
     raise Exception('start_date too early!')
 
-qp_size = 300
+qp_size = 500
 max_alpha_exposure = 1
 max_style_exposure = 0.5
-risk_coef = 5 # k between 0 to 30. k = 0.1 is better...
+risk_coef = 1.5
 
 if __name__ == '__main__':
     print(query_SQL_indexprice())
