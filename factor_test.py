@@ -359,7 +359,6 @@ def WQ001(df):
                             ), index = df.index)
                             , 2), 5)) - 0.5
 
-
 def WQ007(df):
     df['adv20'] = df.groupby('codenum')['vol'].transform(lambda x: x.rolling(window=20, min_periods=20).mean())
     return np.where(df['adv20'] < df['vol'],

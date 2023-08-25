@@ -204,6 +204,7 @@ def backtest_iteration(td, k = risk_coef, x_a = max_alpha_exposure, x_b = max_st
         return np.nan, np.nan
         
     optimal_weight, optimal_exposure = optimize(k, x_a, x_b)
+
     return optimal_weight, optimal_exposure
 
 def backtest_portfolio(k = risk_coef, x_a = max_alpha_exposure, x_b = max_style_exposure, multiprocess = False):
@@ -248,27 +249,29 @@ def backtest_portfolio(k = risk_coef, x_a = max_alpha_exposure, x_b = max_style_
     print('Backtest portofolio generated!')
 
 def param_search(control = True):
-    x_a_range = np.linspace(0.2, 2, 5)
-    x_b_range = np.linspace(0, 0.5, 5)
-    k_range = np.logspace(-1, 2, 5)
+    # x_a_range = np.linspace(0.2, 2, 5)
+    # x_b_range = np.linspace(0, 0.5, 5)
+    # k_range = np.logspace(-1, 2, 5)
+    x_a_range = np.array([])
+    x_b_range = np.array([])
+    k_range = np.logspace(-3, 1.5, 15)
     x_a_range = np.unique(np.append(x_a_range, max_alpha_exposure))
     x_b_range = np.unique(np.append(x_b_range, max_style_exposure))
     k_range = np.unique(np.append(k_range, risk_coef))
-
-    all_combo = [(k, x_a, x_b) for k in k_range for x_a in x_a_range for x_b in x_b_range]
-    index = pd.MultiIndex.from_tuples(all_combo, names=['k', 'x_a', 'x_b'])
-    result = pd.DataFrame(index=index, columns=['Alpha', 'IR', 'Max_drawdown'])
 
     if control:
         test_combo = [(k, max_alpha_exposure, max_style_exposure) for k in k_range]
         test_combo += [(risk_coef, x_a, max_style_exposure) for x_a in x_a_range]
         test_combo += [(risk_coef, max_alpha_exposure, x_b) for x_b in x_b_range]
     else:
-        test_combo = all_combo
-        
+        test_combo = [(k, x_a, x_b) for k in k_range for x_a in x_a_range for x_b in x_b_range]
+
+    index = pd.MultiIndex.from_tuples(test_combo, names=['k', 'x_a', 'x_b'])
+    result = pd.DataFrame(index=index, columns=['Alpha', 'IR', 'Max_drawdown'])
+
     for combo in test_combo:
         backtest_portfolio(*combo)
-        backtest_result = backtest('backtest_portfolio.csv', fig=False)
+        backtest_result = backtest('backtest_portfolio.csv', transaction_fee=0.0005, fig=False)
         result.loc[combo] = [backtest_result.alpha, backtest_result.info_ratio, backtest_result.maximum_drawdown]
 
     result.to_csv('param_search.csv')

@@ -207,5 +207,5 @@ def show_factor_gain(num_shown = 8):
 
 if __name__ == '__main__':
     # random_portfolio(300)
-    print(backtest('backtest_portfolio.csv', transaction_fee = False))
+    print(backtest('backtest_portfolio.csv', transaction_fee = 0.0005))
     show_factor_gain()

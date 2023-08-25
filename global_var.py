@@ -143,7 +143,7 @@ if start_date < 20020101:
 if __name__ == '__main__':
     pass
 
-qp_size = 450
+qp_size = 300
 max_alpha_exposure = 1
-max_style_exposure = 0.2
-risk_coef = 5
+max_style_exposure = 0.5
+risk_coef = 5 # k between 0 to 30. k = 0.1 is better...
