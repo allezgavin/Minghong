@@ -121,6 +121,9 @@ def query_SQL_indexprice():
     df['td'] = df['td'].astype('str')
     df['cumulative'] = df['close'] / df['close'][0]
 
+    # 复权
+    df['close'] = df['close'].iloc[-1] / (np.prod(1 + df['gain']) / (1 + df['gain']).cumprod())
+
     return df
 
 def query_SQL_indexweight():
@@ -140,10 +143,11 @@ if end_date <= start_date:
 if start_date < 20020101:
     raise Exception('start_date too early!')
 
-if __name__ == '__main__':
-    pass
-
 qp_size = 300
 max_alpha_exposure = 1
 max_style_exposure = 0.5
 risk_coef = 5 # k between 0 to 30. k = 0.1 is better...
+
+if __name__ == '__main__':
+    print(query_SQL_indexprice())
+    pass
